@@ -1,7 +1,8 @@
 ﻿/* Sure Weather PWA — vanilla JS, no build step. */
 "use strict";
 
-if ("serviceWorker" in navigator) {
+// Native app: Capacitor serves files itself, sw.js fails to register there (unknown error on fetch) and would only add a failed request at launch.
+if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
   navigator.serviceWorker.register("/sw.js");
 }
 
@@ -615,12 +616,19 @@ function cacheKey() {
    spinner for the whole 11-model fetch + fusion. The previous run now
    paints at once (same place, < 6 h old) while the fresh one loads. */
 const LAST_FC_KEY = "sure-weather-last-fc";
-const LAST_FC_MAX_AGE_MS = 6 * 3600e3;
+/* 6 h and an exact 3-decimal key missed on a real phone: the first launch
+   of the day was past 6 h, and "my position" moves by a few metres between
+   GPS fixes, so the key changed and the spinner came back. Any copy under
+   3 days within ~2 km now paints first ("computed at" shows its age). */
+const LAST_FC_MAX_AGE_MS = 72 * 3600e3;
 
 function loadPersistedForecast(key) {
   try {
     const saved = JSON.parse(localStorage.getItem(LAST_FC_KEY) || "null");
-    if (!saved || saved.key !== key || Date.now() - saved.savedAt > LAST_FC_MAX_AGE_MS) return null;
+    if (!saved || Date.now() - saved.savedAt > LAST_FC_MAX_AGE_MS) return null;
+    const near = Number.isFinite(saved.lat)
+      && Math.abs(saved.lat - state.lat) < 0.02 && Math.abs(saved.lon - state.lon) < 0.03;
+    if (saved.key !== key && !near) return null;
     // Horizons were relative to the old run: rebase them on now, drop the past.
     const now = Date.now();
     const forecast = (saved.data.forecast || [])
@@ -634,9 +642,10 @@ function loadPersistedForecast(key) {
 
 function persistForecast(key, data) {
   // Off the critical path: stringify of a 7-day payload is tens of ms.
+  const { lat, lon } = state; // the place may change before the idle callback
   const save = () => {
     try {
-      localStorage.setItem(LAST_FC_KEY, JSON.stringify({ key, savedAt: Date.now(), data }));
+      localStorage.setItem(LAST_FC_KEY, JSON.stringify({ key, lat, lon, savedAt: Date.now(), data }));
     } catch { /* quota / private mode: cache is best-effort */ }
   };
   if (window.requestIdleCallback) requestIdleCallback(save, { timeout: 3000 });
@@ -675,7 +684,7 @@ let backendDown = forceLocal;
    versionName: the release asset must be named sure-weather-vX.Y.Z.apk.
    Checked against a raw VERSION file (no rate-limit, CORS-open) — the
    api.github.com endpoint is unusable (60 req/h/IP, shared mobile NATs). */
-const APP_VERSION = "1.5.1";
+const APP_VERSION = "1.5.2";
 const APP_REPO = "poirouxmartin/sure-weather";
 // Native-only bridge to AppUpdaterPlugin.java (registered in MainActivity).
 // Undefined in the browser/PWA, where the banner is a plain link to the APK.
@@ -1949,7 +1958,11 @@ function showRadarFrame(idx) {
           return `${f.host}${f.path}/256/${z}/${Math.floor(coords.x / scale)}/${Math.floor(coords.y / scale)}/2/1_1_0.png`;
         },
       });
-      layer = new FrameLayer({ opacity: 0.75, maxNativeZoom: 7, noWrap: true });
+      // L.TileLayer takes (url, options): passing the options first made
+      // them the url and dropped maxNativeZoom, so Leaflet asked for z8+
+      // tiles and each one drew its whole z7 parent: radar echoes shifted
+      // and broken at every tile seam.
+      layer = new FrameLayer("", { opacity: 0.75, maxNativeZoom: 7, noWrap: true });
     }
     radarLayerCache[radarIdx] = layer;
   }
