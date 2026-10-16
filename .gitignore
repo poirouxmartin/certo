@@ -38,6 +38,7 @@ app-android/android/app/src/main/java/com/sureweather/app/*
 !app-android/android/app/src/main/java/com/sureweather/app/WeatherWidget.java
 !app-android/android/app/src/main/java/com/sureweather/app/MainActivity.java
 !app-android/android/app/src/main/java/com/sureweather/app/AppUpdaterPlugin.java
+!app-android/android/app/src/main/java/com/sureweather/app/WidgetRefreshJob.java
 app-android/android/app/src/main/res/*
 !app-android/android/app/src/main/res/layout
 !app-android/android/app/src/main/res/values

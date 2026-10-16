@@ -71,17 +71,23 @@ public class WeatherWidget extends AppWidgetProvider {
     static HttpURLConnection openConn(Context ctx, String url) throws Exception {
         java.net.Proxy proxy = systemProxy(ctx);
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection(proxy);
-        c.setConnectTimeout(12000);
-        c.setReadTimeout(12000);
+        c.setConnectTimeout(8000);
+        c.setReadTimeout(8000);
         return c;
     }
 
-    /* The fetch runs on POOL after onReceive returns. Without goAsync() the
-     * process drops to "cached" at once and recent Android freezes it: the
-     * widget stayed at "--°" until the low-memory killer reaped it (observed
-     * on the API 37 emulator, 106 s with no update). goAsync() keeps the
-     * receiver alive; finish() runs when every refresh is done, or at the
-     * 50 s watchdog, under the 60 s background-broadcast ANR limit. */
+    /** Parallel downloads (tiles, radar, model grid). Cached pool: rainFrames
+     * waits on it from inside another NET task, a fixed pool could deadlock. */
+    static final ExecutorService NET = Executors.newCachedThreadPool();
+
+    /* The fetch used to run under goAsync() for up to 50 s. Widget broadcasts
+     * (update, tap on refresh) can be FOREGROUND broadcasts, whose ANR limit
+     * is 10 s: a slow mobile network made the sequential fetches (12 s
+     * timeouts each) cross it and Android showed "Certo ne répond pas"
+     * (Martin's phone, 16 Oct 2026). The work now runs in a JobService
+     * (WidgetRefreshJob), which keeps the process alive without any receiver
+     * deadline. goAsync() stays only as a fallback when the job cannot be
+     * scheduled, with a 9 s watchdog under that 10 s limit. */
     private static final java.util.concurrent.ScheduledExecutorService WATCHDOG =
             Executors.newSingleThreadScheduledExecutor();
 
@@ -93,17 +99,28 @@ public class WeatherWidget extends AppWidgetProvider {
         final Runnable finish = () -> {
             if (pr != null && finished.compareAndSet(false, true)) pr.finish();
         };
-        WATCHDOG.schedule(finish, 50, java.util.concurrent.TimeUnit.SECONDS);
+        WATCHDOG.schedule(finish, 9, java.util.concurrent.TimeUnit.SECONDS);
         if (count <= 0) finish.run();
         return () -> { if (left.decrementAndGet() <= 0) finish.run(); };
     }
 
+    static int[] allIds(Context context, AppWidgetManager manager) {
+        return manager.getAppWidgetIds(new android.content.ComponentName(context, WeatherWidget.class));
+    }
+
+    /** Main thread: bind names and taps at once (cheap), fetch in the job. */
+    void refreshAll(Context context, AppWidgetManager manager, int[] ids) {
+        if (WidgetRefreshJob.schedule(context)) {
+            for (int id : ids) refresh(context, manager, id, null); // bind only, work dropped
+            return;
+        }
+        Runnable done = asyncDone(goAsync(), ids.length);
+        for (int id : ids) POOL.execute(refresh(context, manager, id, done));
+    }
+
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
-        Runnable done = asyncDone(goAsync(), ids.length);
-        for (int id : ids) {
-            refresh(context, manager, id, done);
-        }
+        refreshAll(context, manager, ids);
     }
 
     @Override
@@ -112,20 +129,16 @@ public class WeatherWidget extends AppWidgetProvider {
         if (ACTION_REFRESH.equals(intent != null ? intent.getAction() : null)) {
             try {
                 AppWidgetManager manager = AppWidgetManager.getInstance(context);
-                android.content.ComponentName self =
-                        new android.content.ComponentName(context, WeatherWidget.class);
-                int[] ids = manager.getAppWidgetIds(self);
-                Runnable done = asyncDone(goAsync(), ids.length);
-                for (int id : ids) {
-                    refresh(context, manager, id, done);
-                }
+                refreshAll(context, manager, allIds(context, manager));
             } catch (Exception ignored) {}
             return;
         }
         super.onReceive(context, intent);
     }
 
-    static void refresh(Context context, AppWidgetManager manager, int appWidgetId, Runnable done) {
+    /** Binds the widget at once and returns the blocking fetch + render work
+     * (network, bitmaps), to run off the main thread. */
+    static Runnable refresh(Context context, AppWidgetManager manager, int appWidgetId, Runnable done) {
         SharedPreferences prefs = context.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
         double lat, lon;
         String name;
@@ -152,8 +165,10 @@ public class WeatherWidget extends AppWidgetProvider {
         views.setTextViewText(R.id.widget_city, fName);
         manager.updateAppWidget(appWidgetId, views);
 
-        POOL.execute(() -> {
+        return () -> {
           final long started = System.currentTimeMillis();
+          // Map frames download in parallel with the forecast.
+          java.util.concurrent.Future<List<Bitmap>> framesF = NET.submit(() -> rainFrames(context, fLat, fLon));
           try {
             String temp = "--", icon = "\u2601\uFE0F", desc = "";
             String minStart = null; // "14:35" of next rain at 15-min precision
@@ -333,7 +348,12 @@ public class WeatherWidget extends AppWidgetProvider {
             // Mini rain ANIMATION: one ViewFlipper child per frame. Falls back
             // to the probability bars when every map source is unreachable.
             try {
-                List<Bitmap> frames = rainFrames(context, fLat, fLon);
+                List<Bitmap> frames = null;
+                try {
+                    frames = framesF.get(25, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    framesF.cancel(true);
+                }
                 if (frames == null) {
                     frames = new ArrayList<>();
                     frames.add(rainBitmap(hProb, hTime));
@@ -357,7 +377,7 @@ public class WeatherWidget extends AppWidgetProvider {
             android.util.Log.d(TAG, "refresh took " + (System.currentTimeMillis() - started) + " ms");
             if (done != null) done.run();
           }
-        });
+        };
     }
 
     /** Mini rain animation, one RemoteViews frame each (ViewFlipper). Frame 0 =
