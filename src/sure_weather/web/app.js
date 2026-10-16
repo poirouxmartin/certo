@@ -675,11 +675,14 @@ let backendDown = forceLocal;
    versionName: the release asset must be named sure-weather-vX.Y.Z.apk.
    Checked against a raw VERSION file (no rate-limit, CORS-open) — the
    api.github.com endpoint is unusable (60 req/h/IP, shared mobile NATs). */
-const APP_VERSION = "1.5.0";
+const APP_VERSION = "1.5.1";
 const APP_REPO = "poirouxmartin/sure-weather";
 // Native-only bridge to AppUpdaterPlugin.java (registered in MainActivity).
 // Undefined in the browser/PWA, where the banner is a plain link to the APK.
-const AppUpdater = isNativeApp ? window.Capacitor?.registerPlugin?.("AppUpdater") : undefined;
+// The bundled native bridge has no Capacitor.registerPlugin (that lives in
+// @capacitor/core, not shipped here): natively registered plugins are exposed
+// as proxies on Capacitor.Plugins instead (checked over CDP on the emulator).
+const AppUpdater = isNativeApp ? window.Capacitor?.Plugins?.AppUpdater : undefined;
 
 function cmpVersions(a, b) {
   const pa = String(a).replace(/^v/, "").split(".").map((x) => parseInt(x, 10) || 0);
