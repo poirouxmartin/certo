@@ -14,6 +14,7 @@ tools/
 app-android/*
 !app-android/capacitor.config.json
 !app-android/package.json
+!app-android/build-apk.ps1
 !app-android/android
 app-android/android/*
 !app-android/android/app
@@ -47,6 +48,7 @@ app-android/android/app/src/main/res/*
 !app-android/android/app/src/main/res/mipmap-anydpi-v26
 app-android/android/app/src/main/res/layout/*
 !app-android/android/app/src/main/res/layout/widget_weather.xml
+!app-android/android/app/src/main/res/layout/widget_rain_frame.xml
 app-android/android/app/src/main/res/values/*
 !app-android/android/app/src/main/res/values/strings.xml
 !app-android/android/app/src/main/res/values/ic_launcher_background.xml
