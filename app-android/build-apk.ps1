@@ -36,6 +36,12 @@ foreach ($f in Get-ChildItem -Path $webSrc -File) {
         Copy-Item $f.FullName (Join-Path $www "static\$($f.Name)")
     }
 }
+# Subfolders too (vendor/leaflet): without them the in-app map stayed an
+# empty grey box, leaflet.js answered 404 in v1.4.0 to v1.5.1.
+foreach ($d in Get-ChildItem -Path $webSrc -Directory) {
+    if ($d.Name -eq '__pycache__') { continue }
+    Copy-Item $d.FullName (Join-Path $www "static\$($d.Name)") -Recurse
+}
 Write-Host "www staged from $webSrc"
 
 # 2. Sync web assets and plugins into the native project.
