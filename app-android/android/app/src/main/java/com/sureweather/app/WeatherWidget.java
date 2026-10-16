@@ -3,6 +3,7 @@ package com.sureweather.app;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -17,14 +18,18 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
+import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.view.View;
 
 /**
@@ -71,30 +76,56 @@ public class WeatherWidget extends AppWidgetProvider {
         return c;
     }
 
+    /* The fetch runs on POOL after onReceive returns. Without goAsync() the
+     * process drops to "cached" at once and recent Android freezes it: the
+     * widget stayed at "--°" until the low-memory killer reaped it (observed
+     * on the API 37 emulator, 106 s with no update). goAsync() keeps the
+     * receiver alive; finish() runs when every refresh is done, or at the
+     * 50 s watchdog, under the 60 s background-broadcast ANR limit. */
+    private static final java.util.concurrent.ScheduledExecutorService WATCHDOG =
+            Executors.newSingleThreadScheduledExecutor();
+
+    static Runnable asyncDone(BroadcastReceiver.PendingResult pr, int count) {
+        final java.util.concurrent.atomic.AtomicInteger left =
+                new java.util.concurrent.atomic.AtomicInteger(count);
+        final java.util.concurrent.atomic.AtomicBoolean finished =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+        final Runnable finish = () -> {
+            if (pr != null && finished.compareAndSet(false, true)) pr.finish();
+        };
+        WATCHDOG.schedule(finish, 50, java.util.concurrent.TimeUnit.SECONDS);
+        if (count <= 0) finish.run();
+        return () -> { if (left.decrementAndGet() <= 0) finish.run(); };
+    }
+
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
+        Runnable done = asyncDone(goAsync(), ids.length);
         for (int id : ids) {
-            refresh(context, manager, id);
+            refresh(context, manager, id, done);
         }
     }
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        super.onReceive(context, intent);
         // Tap on ⟳ : refresh every instance now (no 30-min wait).
         if (ACTION_REFRESH.equals(intent != null ? intent.getAction() : null)) {
             try {
                 AppWidgetManager manager = AppWidgetManager.getInstance(context);
                 android.content.ComponentName self =
                         new android.content.ComponentName(context, WeatherWidget.class);
-                for (int id : manager.getAppWidgetIds(self)) {
-                    refresh(context, manager, id);
+                int[] ids = manager.getAppWidgetIds(self);
+                Runnable done = asyncDone(goAsync(), ids.length);
+                for (int id : ids) {
+                    refresh(context, manager, id, done);
                 }
             } catch (Exception ignored) {}
+            return;
         }
+        super.onReceive(context, intent);
     }
 
-    static void refresh(Context context, AppWidgetManager manager, int appWidgetId) {
+    static void refresh(Context context, AppWidgetManager manager, int appWidgetId, Runnable done) {
         SharedPreferences prefs = context.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
         double lat, lon;
         String name;
@@ -122,6 +153,8 @@ public class WeatherWidget extends AppWidgetProvider {
         manager.updateAppWidget(appWidgetId, views);
 
         POOL.execute(() -> {
+          final long started = System.currentTimeMillis();
+          try {
             String temp = "--", icon = "\u2601\uFE0F", desc = "";
             String minStart = null; // "14:35" of next rain at 15-min precision
             String[] hTime = new String[0];
@@ -297,14 +330,22 @@ public class WeatherWidget extends AppWidgetProvider {
                 }
                 v.setTextViewText(R.id.widget_rain_when, rainTxt);
             } catch (Exception ignored) {}
-            // Mini rain MAP (RainViewer tiles around the place). Falls back
-            // to the probability bars when the tile service is unreachable.
+            // Mini rain ANIMATION: one ViewFlipper child per frame. Falls back
+            // to the probability bars when every map source is unreachable.
             try {
-                Bitmap map = rainMap(context, fLat, fLon);
-                if (map != null) v.setImageViewBitmap(R.id.widget_rain, map);
-                else v.setImageViewBitmap(R.id.widget_rain, rainBitmap(hProb, hTime));
+                List<Bitmap> frames = rainFrames(context, fLat, fLon);
+                if (frames == null) {
+                    frames = new ArrayList<>();
+                    frames.add(rainBitmap(hProb, hTime));
+                }
+                v.removeAllViews(R.id.widget_rain_flipper);
+                for (Bitmap f : frames) {
+                    RemoteViews fv = new RemoteViews(context.getPackageName(), R.layout.widget_rain_frame);
+                    fv.setImageViewBitmap(R.id.widget_rain_frame_img, f);
+                    v.addView(R.id.widget_rain_flipper, fv);
+                }
             } catch (Exception e) {
-                try { v.setImageViewBitmap(R.id.widget_rain, rainBitmap(hProb, hTime)); } catch (Exception ignored) {}
+                android.util.Log.w(TAG, "rain frames failed: " + e);
             }
             try {
                 manager.updateAppWidget(appWidgetId, v);
@@ -312,99 +353,141 @@ public class WeatherWidget extends AppWidgetProvider {
             } catch (Exception e) {
                 android.util.Log.w(TAG, "updateAppWidget failed: " + e);
             }
+          } finally {
+            android.util.Log.d(TAG, "refresh took " + (System.currentTimeMillis() - started) + " ms");
+            if (done != null) done.run();
+          }
         });
     }
 
-    /** Mini rain map: 2×2 RainViewer tiles around the place, cropped square
-     * centered on it. Zooms to z8 and cycles through recent frames (one per
-     * refresh slot) with the frame time stamped on the bitmap — a slow
-     * animation across updates. Returns null when unreachable. */
-    static Bitmap rainMap(Context ctx, double lat, double lon) {
+    /** Mini rain animation, one RemoteViews frame each (ViewFlipper). Frame 0 =
+     * latest RainViewer past radar frame ("Radar HH:mm"), frames +1h…+5h =
+     * Open-Meteo precipitation ("+Nh HH:mm", hour end). All frames share one
+     * 256 px z11 base-map crop (≈13 km wide at 48°N, the place at its centre)
+     * and are 240×240 RGB_565: 6 × 240×240×2 B ≈ 690 KB, under the ~1 MB binder
+     * transaction limit that RemoteViews bitmaps go through. Returns null when
+     * the base map AND both overlay sources fail (caller shows the bars). */
+    static List<Bitmap> rainFrames(Context ctx, double lat, double lon) {
+        final int z = 11;
+        long floorMs = System.currentTimeMillis() / 3600000L * 3600000L; // current UTC hour
+        // Latest radar frame (RainViewer serves z7 at most: upsampled ×16 below).
+        String host = "", path = "";
+        long radarTime = 0;
         HttpURLConnection c = null;
         try {
-            // Latest radar frame index.
             c = openConn(ctx, "https://api.rainviewer.com/public/weather-maps.json");
-            String idx = readAll(c);
-            if (idx == null) return null;
-            JSONObject root = new JSONObject(idx);
-            String host = root.optString("host", "");
+            JSONObject root = new JSONObject(readAll(c));
+            host = root.optString("host", "");
             JSONArray past = root.optJSONObject("radar") != null
                     ? root.optJSONObject("radar").optJSONArray("past") : null;
-            if (host.isEmpty() || past == null || past.length() == 0) return null;
-            // Animation over past AND forecast (nowcast) frames: a different
-            // frame every 30-min refresh slot, so the map visibly moves.
-            JSONArray cast = root.optJSONObject("radar") != null
-                    ? root.optJSONObject("radar").optJSONArray("nowcast") : null;
-            int total = past.length() + (cast != null ? cast.length() : 0);
-            if (total == 0) return null;
-            int slot = (int) ((System.currentTimeMillis() / 1800000) % total);
-            JSONObject frame = slot < past.length()
-                    ? past.getJSONObject(slot) : cast.getJSONObject(slot - past.length());
-            String path = frame.optString("path", "");
-            long frameTime = frame.optLong("time", 0) * 1000;
-            if (path.isEmpty()) return null;
-            // Slippy tiles at z10 around the place (city scale: 2×2 ≈ 50 km,
-            // center crop ≈ 30 km). RainViewer only serves radar up to z7:
-            // those are upsampled ×8 over the sharp z10 street map, exactly
-            // like the web app does (the radar's true resolution is coarse).
-            int z = 10;
-            double n = Math.pow(2, z);
-            double fx = (lon + 180.0) / 360.0 * n;
-            double latR = Math.toRadians(lat);
-            double fy = (1.0 - Math.log(Math.tan(latR) + 1.0 / Math.cos(latR)) / Math.PI) / 2.0 * n;
-            int x0 = (int) Math.floor(fx - 0.5);
-            int y0 = (int) Math.floor(fy - 0.5);
-            Bitmap stitched = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888);
-            Canvas cv = new Canvas(stitched);
-            Paint paint = new Paint();
-            for (int dx = 0; dx < 2; dx++) {
-                for (int dy = 0; dy < 2; dy++) {
-                    // Base map first (streets/coastlines at full z9 detail).
-                    Bitmap base = fetchBitmap(ctx,
-                            "https://tile.openstreetmap.org/" + z + "/" + (x0 + dx) + "/" + (y0 + dy) + ".png",
-                            "SureWeatherWidget/1.0 (contact: widget)");
-                    if (base != null) {
-                        cv.drawBitmap(base, dx * 256, dy * 256, paint);
-                        base.recycle();
-                    }
+            if (past != null && past.length() > 0) {
+                JSONObject last = past.getJSONObject(past.length() - 1);
+                path = last.optString("path", "");
+                radarTime = last.optLong("time", 0) * 1000;
+            }
+        } catch (Exception e) {
+            // Radar unreachable: frame 0 falls back to the model grid.
+        } finally {
+            if (c != null) c.disconnect();
+        }
+        // Base map: 2×2 z11 tiles around the place, cropped to 256 px on it.
+        double n = Math.pow(2, z);
+        double fx = (lon + 180.0) / 360.0 * n;
+        double latR = Math.toRadians(lat);
+        double fy = (1.0 - Math.log(Math.tan(latR) + 1.0 / Math.cos(latR)) / Math.PI) / 2.0 * n;
+        int x0 = (int) Math.floor(fx - 0.5);
+        int y0 = (int) Math.floor(fy - 0.5);
+        Bitmap stitched = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888);
+        Canvas cv = new Canvas(stitched);
+        Paint paint = new Paint();
+        boolean anyTile = false;
+        for (int dx = 0; dx < 2; dx++) {
+            for (int dy = 0; dy < 2; dy++) {
+                Bitmap base = fetchBitmap(ctx,
+                        "https://tile.openstreetmap.org/" + z + "/" + (x0 + dx) + "/" + (y0 + dy) + ".png",
+                        "SureWeatherWidget/1.0 (contact: widget)");
+                if (base != null) {
+                    anyTile = true;
+                    cv.drawBitmap(base, dx * 256, dy * 256, paint);
+                    base.recycle();
                 }
             }
-            // Radar echoes upsampled from z7 over the sharp map. RainViewer
-            // tiles are transparent outside precipitation.
-            Bitmap radar = rainRadarUpsampled(ctx, host, path, x0, y0);
-            if (radar != null) {
-                Paint smooth = new Paint();
-                smooth.setFilterBitmap(true);
-                cv.drawBitmap(radar, 0, 0, smooth);
-                radar.recycle();
+        }
+        // 256 px crop centred on the place (px is in [128, 384), clamp kept anyway).
+        int px = (int) ((fx - x0) * 256);
+        int py = (int) ((fy - y0) * 256);
+        int left = Math.max(0, Math.min(512 - 256, px - 128));
+        int top = Math.max(0, Math.min(512 - 256, py - 128));
+        Bitmap crop = anyTile ? Bitmap.createBitmap(stitched, left, top, 256, 256) : null;
+        stitched.recycle();
+        // Radar echoes on the same 512 px zone (crop offset applied when drawing).
+        Bitmap radar = host.isEmpty() || path.isEmpty() ? null : rainRadarUpsampled(ctx, host, path, x0, y0, z);
+        double[][][] model = modelGrid(ctx, z, x0, y0, left, top, floorMs);
+        if (crop == null && radar == null && model == null) return null;
+        int total = model != null ? 6 : 1;
+        List<Bitmap> frames = new ArrayList<>();
+        if (radar != null) {
+            frames.add(rainFrame(crop, radar, left, top, null, "Radar " + hhmm(radarTime), 0, total));
+        } else {
+            frames.add(rainFrame(crop, null, left, top, model != null ? model[0] : null,
+                    "Maint. " + hhmm(System.currentTimeMillis()), 0, total));
+        }
+        if (model != null) {
+            for (int k = 1; k < 6; k++) {
+                frames.add(rainFrame(crop, null, left, top, model[k],
+                        // Open-Meteo hourly precipitation at T = the hour ENDING
+                        // at T: model[k] covers (floor+k-1h, floor+kh].
+                        "+" + k + "h " + hhmm(floorMs + k * 3600000L), k, total));
             }
-            // Centered 320×320 crop on the exact place.
-            int px = (int) ((fx - x0) * 256);
-            int py = (int) ((fy - y0) * 256);
-            int left = Math.max(0, Math.min(512 - 320, px - 160));
-            int top = Math.max(0, Math.min(512 - 320, py - 160));
-            Bitmap crop = Bitmap.createBitmap(stitched, left, top, 320, 320);
-            stitched.recycle();
-            // Live frame timestamp stamped on the map ("Radar 14:35").
-            if (frameTime > 0) {
-                try {
-                    Canvas cc = new Canvas(crop);
-                    Paint tp = new Paint();
-                    tp.setColor(0xFFFFFFFF);
-                    tp.setTextSize(30f);
-                    tp.setShadowLayer(4f, 2f, 2f, 0xCC000000);
-                    String label;
-                    try {
-                        java.text.SimpleDateFormat hf =
-                                new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault());
-                        label = "Radar " + hf.format(new Date(frameTime));
-                    } catch (Exception e) {
-                        label = "";
-                    }
-                    cc.drawText(label, 12f, 34f, tp);
-                } catch (Exception ignored) {}
+        }
+        if (crop != null) crop.recycle();
+        if (radar != null) radar.recycle();
+        return frames;
+    }
+
+    static String hhmm(long ms) {
+        return new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(ms));
+    }
+
+    /** Open-Meteo precipitation (mm/h) on a 5×5 grid spanning the crop, in ONE
+     * multi-location call (25 points at crop px 0, 64, … 256). Returns
+     * [hour now+0…now+5][row][col], or null when unreachable. "now" = first hour
+     * ≥ current UTC hour (the series starts there, checked live). */
+    static double[][][] modelGrid(Context ctx, int z, int x0, int y0, int left, int top, long floorMs) {
+        HttpURLConnection c = null;
+        try {
+            double n = Math.pow(2, z);
+            StringBuilder la = new StringBuilder();
+            StringBuilder lo = new StringBuilder();
+            for (int r = 0; r < 5; r++) {
+                for (int q = 0; q < 5; q++) {
+                    // Crop pixel → z tile fraction → inverse Web Mercator.
+                    double tx = x0 + (left + q * 64) / 256.0;
+                    double ty = y0 + (top + r * 64) / 256.0;
+                    double plon = tx / n * 360.0 - 180.0;
+                    double plat = Math.toDegrees(Math.atan(Math.sinh(Math.PI * (1.0 - 2.0 * ty / n))));
+                    if (la.length() > 0) { la.append(','); lo.append(','); }
+                    la.append(String.format(Locale.US, "%.5f", plat));
+                    lo.append(String.format(Locale.US, "%.5f", plon));
+                }
             }
-            return crop;
+            c = openConn(ctx, "https://api.open-meteo.com/v1/forecast?latitude=" + la
+                    + "&longitude=" + lo + "&hourly=precipitation&forecast_hours=7&timezone=UTC");
+            JSONArray locs = new JSONArray(readAll(c));
+            SimpleDateFormat inFmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US);
+            inFmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+            JSONArray times = locs.getJSONObject(0).getJSONObject("hourly").getJSONArray("time");
+            int now = -1;
+            for (int i = 0; i < times.length() && now < 0; i++) {
+                if (inFmt.parse(times.getString(i)).getTime() >= floorMs) now = i;
+            }
+            if (now < 0) return null;
+            double[][][] g = new double[6][5][5];
+            for (int p = 0; p < 25; p++) {
+                JSONArray prec = locs.getJSONObject(p).getJSONObject("hourly").getJSONArray("precipitation");
+                for (int k = 0; k < 6; k++) g[k][p / 5][p % 5] = prec.optDouble(now + k, 0);
+            }
+            return g;
         } catch (Exception e) {
             return null;
         } finally {
@@ -412,14 +495,96 @@ public class WeatherWidget extends AppWidgetProvider {
         }
     }
 
-    /** Radar layer for a z10 2×2 zone, sampled at z7 (the finest the radar
-     * serves) and upscaled ×8 with bilinear filtering. 1 px at z7 = 8 px
-     * at z10; the wanted 512 px zone = a 64 px window in z7 pixels. */
-    static Bitmap rainRadarUpsampled(Context ctx, String host, String path, int x0, int y0) {
+    /** One animation frame: base crop (dark fill when the base failed: RGB_565
+     * has no alpha), radar or model overlay, centre marker, label and one
+     * timeline dot per frame. 240 px = 115 KB per frame. */
+    static Bitmap rainFrame(Bitmap base, Bitmap radar, int left, int top, double[][] mm,
+                            String label, int idx, int total) {
+        final int S = 240;
+        Bitmap frame = Bitmap.createBitmap(S, S, Bitmap.Config.RGB_565);
+        Canvas c = new Canvas(frame);
+        Paint smooth = new Paint();
+        smooth.setFilterBitmap(true);
+        c.drawColor(0xFF1E293B);
+        if (base != null) c.drawBitmap(base, null, new Rect(0, 0, S, S), smooth);
+        if (radar != null) {
+            c.drawBitmap(radar, new Rect(left, top, left + 256, top + 256), new Rect(0, 0, S, S), smooth);
+        }
+        if (mm != null) {
+            Bitmap ov = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888);
+            ov.setPixels(rainPixels(mm, S), 0, S, 0, 0, S, S);
+            c.drawBitmap(ov, 0, 0, smooth);
+            ov.recycle();
+        }
+        // Place marker: white dot on a dark ring, readable over any rain colour.
+        Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
+        dot.setColor(0xCC000000);
+        c.drawCircle(S / 2f, S / 2f, 5.5f, dot);
+        dot.setColor(0xFFFFFFFF);
+        c.drawCircle(S / 2f, S / 2f, 4f, dot);
+        Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
+        tp.setColor(0xFFFFFFFF);
+        tp.setTextSize(22f);
+        tp.setShadowLayer(4f, 2f, 2f, 0xCC000000);
+        c.drawText(label, 10f, 30f, tp);
+        // Timeline, top-right on the label line (the bottom is covered by the
+        // "Pluie …" banner): the current frame is filled, the others faint.
+        for (int i = 0; i < total; i++) {
+            dot.setColor(i == idx ? 0xFFFFFFFF : 0x80FFFFFF);
+            c.drawCircle(S - 12f - (total - 1 - i) * 10f, 22f, 3.5f, dot);
+        }
+        return frame;
+    }
+
+    /** Bilinear 5×5 mm/h → size×size ARGB pixels. */
+    static int[] rainPixels(double[][] mm, int size) {
+        int[] out = new int[size * size];
+        for (int y = 0; y < size; y++) {
+            double gy = y * 4.0 / (size - 1);
+            int r0 = (int) Math.floor(gy);
+            int r1 = Math.min(r0 + 1, 4);
+            double ty = gy - r0;
+            for (int x = 0; x < size; x++) {
+                double gx = x * 4.0 / (size - 1);
+                int c0 = (int) Math.floor(gx);
+                int c1 = Math.min(c0 + 1, 4);
+                double tx = gx - c0;
+                double v = (mm[r0][c0] * (1 - tx) + mm[r0][c1] * tx) * (1 - ty)
+                        + (mm[r1][c0] * (1 - tx) + mm[r1][c1] * tx) * ty;
+                out[y * size + x] = rainColor(v);
+            }
+        }
+        return out;
+    }
+
+    /** Radar-like ramp: transparent under 0.1 mm/h (drizzle stays invisible),
+     * then light blue → blue → green → yellow → orange → red from 20 mm/h,
+     * interpolated per channel, alpha 0.6 (0x99) so the street map shows through. */
+    static int rainColor(double v) {
+        final double[] stopMm = {0.1, 0.5, 2, 5, 10, 20};
+        final int[] stopRgb = {0x93C5FD, 0x3B82F6, 0x22C55E, 0xFACC15, 0xF97316, 0xEF4444};
+        if (v < stopMm[0]) return 0;
+        int i = 0;
+        while (i < stopMm.length - 1 && v >= stopMm[i + 1]) i++;
+        if (i == stopMm.length - 1) return 0x99000000 | stopRgb[i];
+        double t = (v - stopMm[i]) / (stopMm[i + 1] - stopMm[i]);
+        int ch = 0;
+        for (int s = 16; s >= 0; s -= 8) {
+            int a = (stopRgb[i] >> s) & 0xFF;
+            int b = (stopRgb[i + 1] >> s) & 0xFF;
+            ch |= (int) Math.round(a + t * (b - a)) << s;
+        }
+        return 0x99000000 | ch;
+    }
+
+    /** Radar layer for a z11 2×2 zone, sampled at z7 (the finest the radar
+     * serves) and upscaled ×16 with bilinear filtering. 1 px at z7 = 16 px
+     * at z11; the wanted 512 px zone = a 32 px window in z7 pixels. */
+    static Bitmap rainRadarUpsampled(Context ctx, String host, String path, int x0, int y0, int z) {
         try {
-            final int F = 8; // 2^(10-7): z10 px per z7 px
-            final int WIN = 512 / F; // 64 px window in z7 pixels
-            // Parent z7 tiles covering the z10 zone (integer division = floor).
+            final int F = 1 << (z - 7); // 2^(11-7) = 16 z11 px per z7 px
+            final int WIN = 512 / F; // 32 px window in z7 pixels
+            // Parent z7 tiles covering the z11 zone (integer division = floor).
             int xa = x0 / F, xb = (x0 + 1) / F;
             int ya = y0 / F, yb = (y0 + 1) / F;
             int nx = xb - xa + 1, ny = yb - ya + 1;

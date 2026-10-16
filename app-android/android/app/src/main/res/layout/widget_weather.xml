@@ -178,11 +178,14 @@
             android:layout_height="96dp"
             android:layout_gravity="center_vertical">
 
-            <ImageView
-                android:id="@+id/widget_rain"
+            <ViewFlipper
+                android:id="@+id/widget_rain_flipper"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:scaleType="centerCrop" />
+                android:autoStart="true"
+                android:flipInterval="1500"
+                android:inAnimation="@android:anim/fade_in"
+                android:outAnimation="@android:anim/fade_out" />
 
             <TextView
                 android:id="@+id/widget_rain_when"
