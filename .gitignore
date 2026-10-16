@@ -15,6 +15,7 @@ app-android/*
 !app-android/capacitor.config.json
 !app-android/package.json
 !app-android/build-apk.ps1
+!app-android/perf/
 !app-android/android
 app-android/android/*
 !app-android/android/app
