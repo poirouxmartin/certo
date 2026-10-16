@@ -675,8 +675,11 @@ let backendDown = forceLocal;
    versionName: the release asset must be named sure-weather-vX.Y.Z.apk.
    Checked against a raw VERSION file (no rate-limit, CORS-open) — the
    api.github.com endpoint is unusable (60 req/h/IP, shared mobile NATs). */
-const APP_VERSION = "1.4.0";
+const APP_VERSION = "1.5.0";
 const APP_REPO = "poirouxmartin/sure-weather";
+// Native-only bridge to AppUpdaterPlugin.java (registered in MainActivity).
+// Undefined in the browser/PWA, where the banner is a plain link to the APK.
+const AppUpdater = isNativeApp ? window.Capacitor?.registerPlugin?.("AppUpdater") : undefined;
 
 function cmpVersions(a, b) {
   const pa = String(a).replace(/^v/, "").split(".").map((x) => parseInt(x, 10) || 0);
@@ -689,11 +692,9 @@ function cmpVersions(a, b) {
 
 async function checkAppUpdate() {
   try {
-    // Throttle on the last SUCCESSFUL check only: a failed check (offline,
-    // rate-limited) retries on next launch instead of staying silent 24h.
-    const lastOk = parseInt(localStorage.getItem("sure-weather-update-ok") || "0", 10);
+    // Checked on every launch (VERSION is a tiny no-store fetch). Only a
+    // failed check is throttled, so an offline start does not retry each time.
     const lastFail = parseInt(localStorage.getItem("sure-weather-update-fail") || "0", 10);
-    if (Date.now() - lastOk < 24 * 3600e3) return; // once a day max
     if (Date.now() - lastFail < 3600e3) return; // retry failures hourly
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 8000);
@@ -701,15 +702,38 @@ async function checkAppUpdate() {
     clearTimeout(t);
     if (!r.ok) throw new Error(`VERSION ${r.status}`);
     const tag = (await r.text()).trim().replace(/^v/, "");
-    localStorage.setItem("sure-weather-update-ok", String(Date.now()));
     if (!tag || cmpVersions(tag, APP_VERSION) <= 0) return;
     const banner = document.getElementById("update-banner");
     if (!banner) return;
-    banner.href = `https://github.com/${APP_REPO}/releases/download/v${tag}/sure-weather-v${tag}.apk`;
+    const apkUrl = `https://github.com/${APP_REPO}/releases/download/v${tag}/sure-weather-v${tag}.apk`;
+    const idle = `<span aria-hidden="true">⬆️</span> ${escHtml(tr("update_available", { v: "v" + tag }))} — ${escHtml(tr("update_download"))}`;
+    banner.href = apkUrl;
     banner.target = "_blank";
     banner.rel = "noopener";
     banner.hidden = false;
-    banner.innerHTML = `<span aria-hidden="true">⬆️</span> ${escHtml(tr("update_available", { v: "v" + tag }))} — ${escHtml(tr("update_download"))}`;
+    banner.innerHTML = idle;
+    if (AppUpdater) {
+      // Native APK: install in-app. Errors (e.g. NEED_PERMISSION) replace the
+      // banner text but it stays clickable, so the user can retry.
+      let busy = false;
+      AppUpdater.addListener("progress", ({ pct }) => {
+        banner.textContent = tr("update_progress", { p: pct });
+      });
+      banner.addEventListener("click", async (ev) => {
+        ev.preventDefault();
+        if (busy) return;
+        busy = true;
+        banner.textContent = tr("update_progress", { p: 0 });
+        try {
+          await AppUpdater.downloadAndInstall({ url: apkUrl, expectedVersion: tag });
+          banner.innerHTML = idle;
+        } catch (e) {
+          banner.textContent = e?.message || String(e);
+        } finally {
+          busy = false;
+        }
+      });
+    }
   } catch (e) {
     // Best-effort: remember the failure briefly, retry on next launch.
     try { localStorage.setItem("sure-weather-update-fail", String(Date.now())); } catch {}

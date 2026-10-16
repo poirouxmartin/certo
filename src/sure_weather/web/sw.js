@@ -3,7 +3,7 @@
    - /weather: network-first with put + cached fallback for offline.
    - /tile + /wind-grid: cache-first runtime cache (offline map, upstream
      hiccups), trimmed to a bounded number of entries. */
-const CACHE = "sure-weather-v13";
+const CACHE = "sure-weather-v14";
 const RUNTIME = "sure-weather-tiles-v1";
 const RUNTIME_MAX = 600;
 const APP_SHELL = ["/", "/mini.html", "/static/app.css", "/static/app.js", "/static/i18n.js", "/static/local-provider.js", "/static/local-learn.js", "/static/icon.svg",
@@ -87,10 +87,10 @@ self.addEventListener("fetch", (e) => {
 });
 
 self.addEventListener("push", (e) => {
-  let data = { title: "Sure Weather", body: "Mise à jour météo" };
+  let data = { title: "Certo", body: "Mise à jour météo" };
   try { data = e.data.json(); } catch {}
   e.waitUntil(
-    self.registration.showNotification(data.title || "Sure Weather", {
+    self.registration.showNotification(data.title || "Certo", {
       body: data.body || "",
       icon: "/static/icon-192.png",
       badge: "/static/icon-192.png",
