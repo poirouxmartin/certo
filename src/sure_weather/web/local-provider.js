@@ -128,7 +128,7 @@ window.SureLocal = (() => {
     return (
       `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}` +
       `&hourly=${HOURLY.join(",")}&minutely_15=precipitation&daily=sunrise,sunset&models=${models.join(",")}` +
-      `&forecast_days=7&past_days=1&wind_speed_unit=ms&timezone=UTC`
+      `&forecast_days=7&past_days=1&forecast_minutely_15=48&past_minutely_15=4&wind_speed_unit=ms&timezone=UTC`
     );
   }
   /* Rain timing at 15-min precision: median precipitation across models per
@@ -218,13 +218,12 @@ window.SureLocal = (() => {
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     let sun;
     try {
-      const data = await fetchJson(forecastUrl(lat, lon, MODELS), ctrl.signal, "prévisions");
       // High-res regional models (AROME France 1.3km, ICON-D2 2.2km):
-      // best-effort, skipped silently outside their domain.
-      let hiData = null;
-      try {
-        hiData = await fetchJson(forecastUrl(lat, lon, HIRES_MODELS), ctrl.signal, "haute-résolution");
-      } catch { hiData = null; }
+      // best-effort, skipped silently outside their domain. Started in
+      // parallel with the main request to save one round-trip.
+      const hiPromise = fetchJson(forecastUrl(lat, lon, HIRES_MODELS), ctrl.signal, "haute-résolution").catch(() => null);
+      const data = await fetchJson(forecastUrl(lat, lon, MODELS), ctrl.signal, "prévisions");
+      const hiData = await hiPromise;
       const hourly = data.hourly || {};
       const modelsOk = MODELS.filter((m) => HOURLY.some((v) => hourly[`${v}_${m}`] || hourly[v]));
       if (!modelsOk.length) throw new Error("réponse météo vide — réessaie dans une minute");

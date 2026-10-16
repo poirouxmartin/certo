@@ -23,10 +23,12 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin="" />
+  <!-- Fonts and Leaflet are kept off the render path: a render-blocking CDN
+       request stalled first paint on mobile networks. Leaflet is vendored
+       under /static/vendor/leaflet (same 1.9.4 files, SRI-verified). -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" data-async-css />
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" /></noscript>
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
   <link rel="stylesheet" href="/static/app.css" />
 </head>
 <body data-sky="day">
@@ -239,9 +241,7 @@
     </footer>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin="" defer></script>
+  <script src="/static/vendor/leaflet/leaflet.js" defer></script>
   <script src="/static/local-provider.js" defer></script>
   <script src="/static/local-learn.js" defer></script>
   <script src="/static/i18n.js" defer></script>

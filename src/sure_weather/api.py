@@ -592,11 +592,11 @@ def service_worker() -> FileResponse:
 async def _security_headers(request, call_next):
     """Content-Security-Policy + no-cache for the service worker script."""
     response = await call_next(request)
-    # Leaflet CDN is pinned with SRI in index.html; allow it + fonts + OSM/radar tiles.
+    # Leaflet is vendored under /static; allow fonts + OSM/radar tiles.
     csp = (
         "default-src 'self'; "
-        "script-src 'self' https://unpkg.com; "
-        "style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https://tile.openstreetmap.org https://*.rainviewer.com; "
         "connect-src 'self' https://geocoding-api.open-meteo.com;"

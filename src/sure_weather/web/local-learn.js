@@ -21,17 +21,26 @@ window.SureLearn = (() => {
   const cell05 = (lat, lon) =>
     `${(Math.round(lat * 2) / 2).toFixed(1)},${(Math.round(lon * 2) / 2).toFixed(1)}`;
 
+  /* Parsed store kept in memory: getStat() runs once per model × variable ×
+     hour (~26 000 calls per fusion), and re-parsing the up-to-2 MB JSON on
+     each call froze the APK for ~40 s before the first forecast (measured on
+     a Pixel 8 emulator) — growing with every day of use. All callers share
+     this one object; save() persists it. */
+  let memo = null;
+  window.addEventListener("storage", (e) => { if (e.key === KEY) memo = null; });
   function load() {
+    if (memo) return memo;
     try {
       const raw = localStorage.getItem(KEY);
-      if (!raw) return { preds: {}, stats: {}, lastLearn: 0 };
+      if (!raw) return (memo = { preds: {}, stats: {}, lastLearn: 0 });
       const s = JSON.parse(raw);
-      if (!s || typeof s !== "object") return { preds: {}, stats: {}, lastLearn: 0 };
+      if (!s || typeof s !== "object") return (memo = { preds: {}, stats: {}, lastLearn: 0 });
       s.preds = s.preds || {}; s.stats = s.stats || {};
-      return s;
-    } catch { return { preds: {}, stats: {}, lastLearn: 0 }; }
+      return (memo = s);
+    } catch { return (memo = { preds: {}, stats: {}, lastLearn: 0 }); }
   }
   function save(s) {
+    memo = s;
     try {
       // Prune oldest predictions first (keys sort chronologically by suffix).
       const keys = Object.keys(s.preds);

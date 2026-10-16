@@ -611,6 +611,38 @@ function cacheKey() {
   return `${state.lat.toFixed(3)},${state.lon.toFixed(3)}`;
 }
 
+/* Last forecast persisted across launches: every open used to show a
+   spinner for the whole 11-model fetch + fusion. The previous run now
+   paints at once (same place, < 6 h old) while the fresh one loads. */
+const LAST_FC_KEY = "sure-weather-last-fc";
+const LAST_FC_MAX_AGE_MS = 6 * 3600e3;
+
+function loadPersistedForecast(key) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LAST_FC_KEY) || "null");
+    if (!saved || saved.key !== key || Date.now() - saved.savedAt > LAST_FC_MAX_AGE_MS) return null;
+    // Horizons were relative to the old run: rebase them on now, drop the past.
+    const now = Date.now();
+    const forecast = (saved.data.forecast || [])
+      .map((i) => ({ ...i, horizon_h: +((new Date(i.valid_at).getTime() - now) / 3600e3).toFixed(1) }))
+      .filter((i) => Number.isFinite(i.horizon_h) && i.horizon_h >= -1);
+    return forecast.length ? { ...saved.data, forecast } : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistForecast(key, data) {
+  // Off the critical path: stringify of a 7-day payload is tens of ms.
+  const save = () => {
+    try {
+      localStorage.setItem(LAST_FC_KEY, JSON.stringify({ key, savedAt: Date.now(), data }));
+    } catch { /* quota / private mode: cache is best-effort */ }
+  };
+  if (window.requestIdleCallback) requestIdleCallback(save, { timeout: 3000 });
+  else setTimeout(save, 500);
+}
+
 function showSkeletons(name) {
   el("loc-name").textContent = name;
   el("now-temp").textContent = "—";
@@ -631,7 +663,11 @@ function showSkeletons(name) {
    fuses Open-Meteo models directly on the phone. Auto-detected: ?local=1
    forces it, otherwise the first backend failure (or a failed /health
    probe at boot) switches over for the whole session. */
-const forceLocal = new URLSearchParams(location.search).get("local") === "1";
+// Inside the APK the only "backend" is Capacitor's bundled file server:
+// /health and /weather can only return the SPA fallback, so probing them
+// just delayed the on-device fetch on every launch.
+const isNativeApp = !!window.Capacitor?.isNativePlatform?.();
+const forceLocal = new URLSearchParams(location.search).get("local") === "1" || isNativeApp;
 let backendDown = forceLocal;
 
 /* App version bundled here — bump on every GitHub release so the in-app
@@ -639,7 +675,7 @@ let backendDown = forceLocal;
    versionName: the release asset must be named sure-weather-vX.Y.Z.apk.
    Checked against a raw VERSION file (no rate-limit, CORS-open) — the
    api.github.com endpoint is unusable (60 req/h/IP, shared mobile NATs). */
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.4.0";
 const APP_REPO = "poirouxmartin/sure-weather";
 
 function cmpVersions(a, b) {
@@ -716,7 +752,7 @@ async function probeBackend() {
 async function loadForecast() {
   const token = ++reqToken;
   const key = cacheKey();
-  const cached = dataCache.get(key);
+  const cached = dataCache.get(key) || loadPersistedForecast(key);
   showSkeletons(state.name);
   hide(el("loading"));
   if (cached) render(cached, state.hours); // instant paint, then refresh
@@ -771,6 +807,7 @@ async function loadForecast() {
       if (dataCache.size > 24) dataCache.delete(dataCache.keys().next().value);
       hide(el("loading"));
       render(data, state.hours);
+      persistForecast(key, data);
       // Partial response (background backfill still running): upgrade soon.
       if (data.partial) {
         const tries = (partialTries.get(key) || 0) + 1;
@@ -828,6 +865,8 @@ async function loadForecastLocal(token, key, cached) {
     partialTries.delete(key);
     hide(el("loading"));
     render(data, state.hours);
+    if (!performance.getEntriesByName("sw-fresh-forecast").length) performance.mark("sw-fresh-forecast");
+    persistForecast(key, data);
   } catch (e) {
     if (token !== reqToken) return;
     hide(el("loading"));
@@ -889,6 +928,8 @@ function clientSummary(fc) {
 
 function render(data, hours = state.hours) {
   currentData = data;
+  // Startup benchmark hook (app-android/perf): first real data on screen.
+  if (!performance.getEntriesByName("sw-first-render").length) performance.mark("sw-first-render");
   hide(el("loading"));
   hide(el("empty"));
   show(el("content"));
@@ -2124,6 +2165,9 @@ $("#radar-slider").addEventListener("input", (e) => {
 });
 
 /* Boot */
+// Web fonts load as media="print" (non-blocking); switch them on here since
+// the CSP forbids an inline onload handler.
+document.querySelectorAll("link[data-async-css]").forEach((l) => { l.media = "all"; });
 (function markRestoredControls() {
   document.querySelectorAll("#range-seg .seg__btn").forEach((b) => {
     b.classList.toggle("seg__btn--active", parseInt(b.dataset.hours, 10) === state.hours);
