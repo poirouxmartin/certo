@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Python 3.12+ service: collects weather forecasts and observations, learns per-provider bias in ~0.1 degree cells in SQLite, and serves a fused forecast through FastAPI. Last commit 2026-09-05. Concept and usage: README.md. Dev rules: AGENTS.md.
+Python 3.12+ service: collects weather forecasts and observations, learns per-provider bias in ~0.1 degree cells in SQLite, and serves a fused forecast through FastAPI. Last commit 2026-09-05. Concept and usage: README.md. Dev rules: AGENTS.md. The app is branded Certo; GitHub repo poirouxmartin/certo (renamed from sure-weather on 2026-10-17, old URLs redirect). Each release must ship the APK as certo-vX.Y.Z.apk plus a sure-weather-vX.Y.Z.apk copy for clients up to v1.5.2.
 
 ## Commands (verified in pyproject.toml, cli.py, api.py)
 

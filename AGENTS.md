@@ -1,4 +1,4 @@
-# AGENTS.md — sure-weather
+# AGENTS.md — Certo
 
 ## Description
 

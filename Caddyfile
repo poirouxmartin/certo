@@ -1,4 +1,4 @@
-﻿# Sure Weather — accès HTTPS depuis le réseau local (téléphone/tablette).
+﻿# Certo — accès HTTPS depuis le réseau local (téléphone/tablette).
 #
 # Le service worker et l'installation PWA exigent un contexte sécurisé :
 # en HTTP, seul http://localhost fonctionne. Ce reverse proxy expose

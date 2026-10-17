@@ -1,4 +1,4 @@
-/* Sure Weather — standalone on-device provider (APK / offline-backend mode).
+/* Certo — standalone on-device provider (APK / offline-backend mode).
    No backend needed: fetches several NWP models straight from Open-Meteo on
    the phone and fuses them with a median consensus. No learned calibration
    (no residual history on device): confidence reflects inter-model agreement

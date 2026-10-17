@@ -29,7 +29,7 @@ import java.net.URL;
 @CapacitorPlugin(name = "AppUpdater")
 public class AppUpdaterPlugin extends Plugin {
 
-    private static final String URL_PREFIX = "https://github.com/poirouxmartin/sure-weather/releases/download/";
+    private static final String URL_PREFIX = "https://github.com/poirouxmartin/certo/releases/download/";
     // GitHub answers with a 302 to objects.githubusercontent.com; HttpURLConnection
     // does not follow cross-protocol hops by itself, so redirects are walked here.
     private static final int MAX_REDIRECTS = 5;

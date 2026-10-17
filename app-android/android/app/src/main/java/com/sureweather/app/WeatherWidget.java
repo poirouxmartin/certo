@@ -425,7 +425,7 @@ public class WeatherWidget extends AppWidgetProvider {
             for (int dy = 0; dy < 2; dy++) {
                 Bitmap base = fetchBitmap(ctx,
                         "https://tile.openstreetmap.org/" + z + "/" + (x0 + dx) + "/" + (y0 + dy) + ".png",
-                        "SureWeatherWidget/1.0 (contact: widget)");
+                        "CertoWidget/1.0 (contact: widget)");
                 if (base != null) {
                     anyTile = true;
                     cv.drawBitmap(base, dx * 256, dy * 256, paint);
@@ -649,7 +649,7 @@ public class WeatherWidget extends AppWidgetProvider {
     }
 
     static Bitmap fetchBitmap(Context ctx, String url) {
-        return fetchBitmap(ctx, url, "SureWeatherWidget/1.0");
+        return fetchBitmap(ctx, url, "CertoWidget/1.0");
     }
 
     static Bitmap fetchBitmap(Context ctx, String url, String userAgent) {

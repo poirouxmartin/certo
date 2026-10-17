@@ -1,4 +1,4 @@
-﻿/* Sure Weather service worker.
+﻿/* Certo service worker.
    - App shell: precached, versioned; network-first so deploys always land.
    - /weather: network-first with put + cached fallback for offline.
    - /tile + /wind-grid: cache-first runtime cache (offline map, upstream

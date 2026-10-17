@@ -25,7 +25,7 @@ from .service import WeatherService
 from .storage import Storage
 from .tiles import render_tile, wind_grid as render_wind_grid
 
-app = FastAPI(title="Sure Weather", version="0.1.0")
+app = FastAPI(title="Certo", version="0.1.0")
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 # /now is consumed cross-origin by Shortcuts/KWGT widgets: allow browsers.
 app.add_middleware(
@@ -502,7 +502,7 @@ def push_test(
                 },
                 data=json.dumps(
                     {
-                        "title": "Sure Weather — test",
+                        "title": "Certo — test",
                         "body": "Pluie prévue dans l'heure ☔",
                         "url": f"/?lat={lat or 48.85}&lon={lon or 2.35}",
                     }

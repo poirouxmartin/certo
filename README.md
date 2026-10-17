@@ -1,8 +1,12 @@
-# sure-weather
+# Certo
+
+Certo (formerly sure-weather) is the weather app; the Python service and its CLI keep the sure_weather / sure-weather names.
+
+Android app: download the latest APK from [the releases page](https://github.com/poirouxmartin/certo/releases/latest); installed apps update themselves from there.
 
 Multi-source weather fusion with per-provider confidence, targeting hyperlocal nowcasts and 7-day forecasts.
 
-Project page: [martinpoiroux.com/projets/sure-weather/](https://martinpoiroux.com/projets/sure-weather/)
+Project page: [martinpoiroux.com/projets/certo/](https://martinpoiroux.com/projets/certo/)
 
 ## Concept
 

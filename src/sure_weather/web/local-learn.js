@@ -1,4 +1,4 @@
-/* Sure Weather — on-device learning (APK standalone).
+/* Certo — on-device learning (APK standalone).
    The backend learns per-provider bias/rmse from residuals; on the phone
    there is no server history, so the app builds its own:
    - every fusion RECORDS each model's raw values per valid hour;

@@ -1,4 +1,4 @@
-﻿/* Sure Weather PWA — vanilla JS, no build step. */
+﻿/* Certo PWA — vanilla JS, no build step. */
 "use strict";
 
 // Native app: Capacitor serves files itself, sw.js fails to register there (unknown error on fetch) and would only add a failed request at launch.
@@ -681,11 +681,12 @@ let backendDown = forceLocal;
 
 /* App version bundled here — bump on every GitHub release so the in-app
    updater can offer it. ALSO bump VERSION (repo root), versionCode and
-   versionName: the release asset must be named sure-weather-vX.Y.Z.apk.
+   versionName: the release asset must be named certo-vX.Y.Z.apk.
+   Releases also carry a sure-weather-vX.Y.Z.apk copy: v1.5.2 and older look for that name under the old repo path, which GitHub redirects since the repo rename (17 Oct 2026).
    Checked against a raw VERSION file (no rate-limit, CORS-open) — the
    api.github.com endpoint is unusable (60 req/h/IP, shared mobile NATs). */
-const APP_VERSION = "1.5.2";
-const APP_REPO = "poirouxmartin/sure-weather";
+const APP_VERSION = "1.5.3";
+const APP_REPO = "poirouxmartin/certo";
 // Native-only bridge to AppUpdaterPlugin.java (registered in MainActivity).
 // Undefined in the browser/PWA, where the banner is a plain link to the APK.
 // The bundled native bridge has no Capacitor.registerPlugin (that lives in
@@ -717,7 +718,7 @@ async function checkAppUpdate() {
     if (!tag || cmpVersions(tag, APP_VERSION) <= 0) return;
     const banner = document.getElementById("update-banner");
     if (!banner) return;
-    const apkUrl = `https://github.com/${APP_REPO}/releases/download/v${tag}/sure-weather-v${tag}.apk`;
+    const apkUrl = `https://github.com/${APP_REPO}/releases/download/v${tag}/certo-v${tag}.apk`;
     const idle = `<span aria-hidden="true">⬆️</span> ${escHtml(tr("update_available", { v: "v" + tag }))} — ${escHtml(tr("update_download"))}`;
     banner.href = apkUrl;
     banner.target = "_blank";

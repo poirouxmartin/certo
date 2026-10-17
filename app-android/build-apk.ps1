@@ -1,6 +1,6 @@
 # Build the debug APK of the Capacitor shell from src/sure_weather/web.
 # Usage (from anywhere): powershell -ExecutionPolicy Bypass -File app-android\build-apk.ps1
-# Output: app-android\dist\sure-weather-v<versionName>.apk
+# Output: app-android\dist\certo-v<versionName>.apk
 # Native tools (npx, gradlew) are checked via $LASTEXITCODE: PS 5.1 turns their
 # stderr into terminating errors under 'Stop' when redirected.
 $ErrorActionPreference = 'Continue'
@@ -69,7 +69,7 @@ $version = $Matches[1]
 
 $apkSrc = Join-Path $android 'app\build\outputs\apk\debug\app-debug.apk'
 if (-not (Test-Path $apkSrc)) { throw "APK not found: $apkSrc" }
-$apkDst = Join-Path $dist "sure-weather-v$version.apk"
+$apkDst = Join-Path $dist "certo-v$version.apk"
 Copy-Item $apkSrc $apkDst -Force
 $size = (Get-Item $apkDst).Length
 Write-Host "APK: $apkDst ($size bytes)"
