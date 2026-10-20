@@ -1,0 +1,9 @@
+--------- beginning of main
+10-20 20:34:15.749 10961 11177 D SureWidget: refresh lat=48.8566 lon=2.3522
+10-20 20:34:16.820 10961 11177 D SureWidget: stage 1 (forecast) 1072 ms
+10-20 20:34:17.456 10961 11177 D SureWidget: stage 2 (frames) 1707 ms
+10-20 20:34:17.456 10961 11177 D SureWidget: refresh took 1708 ms
+10-20 20:34:22.250 10961 11177 D SureWidget: refresh lat=48.8566 lon=2.3522
+10-20 20:34:23.103 10961 11177 D SureWidget: stage 1 (forecast) 853 ms
+10-20 20:34:23.608 10961 11177 D SureWidget: stage 2 (frames) 1358 ms
+10-20 20:34:23.608 10961 11177 D SureWidget: refresh took 1358 ms

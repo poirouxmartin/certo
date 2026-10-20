@@ -8,6 +8,9 @@ Multi-source weather fusion with per-provider confidence, targeting hyperlocal n
 
 Project page: [martinpoiroux.com/projets/certo/](https://martinpoiroux.com/projets/certo/)
 
+**Build the APK:** `powershell -ExecutionPolicy Bypass -File app-android\build-apk.ps1` writes `app-android/dist/certo-vX.Y.Z.apk`. Releases ship `certo-vX.Y.Z.apk` plus a `sure-weather-vX.Y.Z.apk` copy for clients up to v1.5.2.
+The version lives in `VERSION`, `app-android/android/app/build.gradle` (versionCode/versionName) and `APP_VERSION` in `src/sure_weather/web/app.js`; in-app updates trigger when `VERSION` on master is newer.
+
 ## Concept
 
 Cross-reference many weather sources (NWP models, local stations) and learn each provider's bias per point. Every prediction is later compared to the actually observed weather, which recalibrates provider weights in a continuous feedback loop.
@@ -46,6 +49,12 @@ sure-weather forecast 48.8566,2.3522 --hours 48
 uvicorn sure_weather.api:app
 ```
 
+## Screenshots
+
+<img src="docs/screenshots/after/light-01.png" width="240"> <img src="docs/screenshots/after/dark-01.png" width="240">
+
+More captures (before/after, radar, widget): [docs/screenshots/README.md](docs/screenshots/README.md). Release notes: [docs/CHANGELOG.md](docs/CHANGELOG.md).
+
 ## Tests
 
 ```bash
@@ -59,7 +68,7 @@ uvicorn sure_weather.api:app
 - [x] Robust fusion with per-provider confidence
 - [x] Multi-model providers (GFS, ECMWF, ICON, MetNo, ARPEGE) weighted by learned RMSE
 - [x] Installable PWA served by the API (radar, wind grid, push notifications)
-- [x] Android shell with a home-screen widget and in-app updates (APK in Releases)
+- [x] Android shell with a home-screen widget (auto-refresh every 15 min), animated radar, and in-app updates (APK in Releases)
 - [ ] Local station providers (Netatmo / PWS)
 - [ ] Temporal blending (stations dominate short-term, models long-term)
 
