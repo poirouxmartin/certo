@@ -189,7 +189,10 @@ public class WeatherWidget extends AppWidgetProvider {
         WidgetRefreshJob.cancelPeriodic(context);
         try {
             File[] fs = framesDir(context).listFiles();
-            if (fs != null) for (File f : fs) f.delete();
+            if (fs != null) for (File f : fs) {
+                revokeFrame(context, f);
+                f.delete();
+            }
             framesDir(context).delete();
             context.getSharedPreferences(STATE_PREFS, Context.MODE_PRIVATE).edit().clear().apply();
         } catch (Exception ignored) {}
@@ -250,11 +253,48 @@ public class WeatherWidget extends AppWidgetProvider {
 
     // ---------------------------------------------------------------- views
 
+    /** Read grant on one frame for every home app (the widget host). Grants do
+     * not survive a reboot, so they are re-issued on every bind (cheap). */
+    static void grantToLauncher(Context ctx, android.net.Uri uri, List<String> homes) {
+        try {
+            for (String pkg : homes) {
+                ctx.grantUriPermission(pkg, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            }
+        } catch (Throwable e) {
+            android.util.Log.w(TAG, "frame grant failed: " + e);
+        }
+    }
+
+    /** HOME packages, queried once per updateAll rather than once per frame. */
+    static List<String> homePackages(Context ctx) {
+        List<String> out = new ArrayList<>();
+        try {
+            Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+            for (android.content.pm.ResolveInfo ri : ctx.getPackageManager().queryIntentActivities(home, 0)) {
+                if (ri.activityInfo != null) out.add(ri.activityInfo.packageName);
+            }
+        } catch (Throwable e) {
+            android.util.Log.w(TAG, "home lookup failed: " + e);
+        }
+        return out;
+    }
+
+    /** Grants stay registered in system_server until revoked (deleting the file
+     * does not drop them): revoke before every frame deletion. */
+    static void revokeFrame(Context ctx, File f) {
+        try {
+            ctx.revokeUriPermission(WidgetFrameProvider.uriFor(ctx, f.getName()), Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (Throwable e) {
+            android.util.Log.w(TAG, "frame revoke failed: " + e);
+        }
+    }
+
     static void updateAll(Context ctx, AppWidgetManager manager, int[] ids, JSONObject st,
                           List<String> frames, int nowIdx) {
+        List<String> homes = homePackages(ctx);
         for (int id : ids) {
             try {
-                manager.updateAppWidget(id, buildViews(ctx, id, st, frames, nowIdx));
+                manager.updateAppWidget(id, buildViews(ctx, id, st, frames, nowIdx, homes));
             } catch (Throwable e) {
                 android.util.Log.w(TAG, "updateAppWidget failed id=" + id + ": " + e);
             }
@@ -265,7 +305,7 @@ public class WeatherWidget extends AppWidgetProvider {
      * update: the radar frames are only content:// URIs (a few KB), so there is
      * no binder size risk and no partial-merge pitfall (stale flipper children). */
     static RemoteViews buildViews(Context ctx, int appWidgetId, JSONObject st,
-                                  List<String> frames, int nowIdx) {
+                                  List<String> frames, int nowIdx, List<String> homes) {
         // Tap = open the app (and trigger a refresh of this widget).
         Intent open = new Intent(ctx, MainActivity.class);
         open.setAction("com.sureweather.app.OPEN_FROM_WIDGET");
@@ -320,7 +360,9 @@ public class WeatherWidget extends AppWidgetProvider {
                 String f = frames.get(i);
                 if (!new File(framesDir(ctx), f).isFile()) continue;
                 RemoteViews fv = new RemoteViews(ctx.getPackageName(), R.layout.widget_rain_frame);
-                fv.setImageViewUri(R.id.widget_rain_frame_img, WidgetFrameProvider.uriFor(ctx, f));
+                android.net.Uri uri = WidgetFrameProvider.uriFor(ctx, f);
+                grantToLauncher(ctx, uri, homes);
+                fv.setImageViewUri(R.id.widget_rain_frame_img, uri);
                 v.addView(R.id.widget_rain_flipper, fv);
                 shown++;
                 if (i <= nowIdx) newNow = shown - 1;
@@ -365,7 +407,9 @@ public class WeatherWidget extends AppWidgetProvider {
                 List<String> oldFrames = samePlace ? loadFrames(ctx) : new ArrayList<String>();
                 int oldNow = samePlace ? loadFramesNow(ctx) : 0;
                 final long stamp = t0;
-                Future<FrameSet> framesF = NET.submit(() -> buildFrames(ctx, pl.lat, pl.lon, stamp));
+                // One absolute budget shared by the outer wait and every inner wait of buildFrames.
+                final long deadline = System.currentTimeMillis() + 20_000L;
+                Future<FrameSet> framesF = NET.submit(() -> buildFrames(ctx, pl.lat, pl.lon, stamp, deadline));
 
                 // Stage 1: forecast.
                 JSONObject st = null;
@@ -385,7 +429,7 @@ public class WeatherWidget extends AppWidgetProvider {
                 // Stage 2: radar frames.
                 FrameSet fs = null;
                 try {
-                    fs = framesF.get(20, TimeUnit.SECONDS);
+                    fs = framesF.get(remainingMs(deadline), TimeUnit.MILLISECONDS);
                 } catch (Exception e) {
                     framesF.cancel(true);
                     android.util.Log.w(TAG, "frames failed: " + e);
@@ -400,7 +444,11 @@ public class WeatherWidget extends AppWidgetProvider {
                 }
                 // Keep the previous set: the launcher may still be showing it.
                 File[] files = framesDir(ctx).listFiles();
-                if (files != null) for (File f : files) if (!keep.contains(f.getName())) f.delete();
+                if (files != null) for (File f : files) {
+                    if (keep.contains(f.getName())) continue;
+                    revokeFrame(ctx, f);
+                    f.delete();
+                }
                 android.util.Log.d(TAG, "stage 2 (frames) " + (System.currentTimeMillis() - t0) + " ms");
             } catch (Throwable e) {
                 android.util.Log.w(TAG, "refresh failed: " + e);
@@ -408,6 +456,11 @@ public class WeatherWidget extends AppWidgetProvider {
                 android.util.Log.d(TAG, "refresh took " + (System.currentTimeMillis() - t0) + " ms");
             }
         }
+    }
+
+    /** Time left before an absolute System.currentTimeMillis() deadline (never negative). */
+    static long remainingMs(long deadline) {
+        return Math.max(0, deadline - System.currentTimeMillis());
     }
 
     static JSONObject placeholder(Place pl) {
@@ -574,7 +627,7 @@ public class WeatherWidget extends AppWidgetProvider {
      * frames share one 256 px z11 base-map crop (about 13 km wide at 48N, the
      * place at its centre). Returns null when the base map AND every overlay
      * source fail (the widget then shows the bars). */
-    static FrameSet buildFrames(Context ctx, double lat, double lon, long stamp) throws Exception {
+    static FrameSet buildFrames(Context ctx, double lat, double lon, long stamp, long deadline) throws Exception {
         final int z = 11;
         final long floorMs = System.currentTimeMillis() / 3600000L * 3600000L; // current UTC hour
         double n = Math.pow(2, z);
@@ -605,7 +658,7 @@ public class WeatherWidget extends AppWidgetProvider {
         List<Long> fTimes = new ArrayList<>();
         List<double[][]> fGrids = new ArrayList<>();
         Grid g15 = null;
-        try { g15 = gridF.get(15, TimeUnit.SECONDS); } catch (Exception e) { gridF.cancel(true); }
+        try { g15 = gridF.get(remainingMs(deadline), TimeUnit.MILLISECONDS); } catch (Exception e) { gridF.cancel(true); }
         if (g15 != null) {
             for (int s = 0; s < g15.t.length && fTimes.size() < 8; s++) {
                 if (g15.t[s] > ref) { fTimes.add(g15.t[s]); fGrids.add(g15.g[s]); }
@@ -618,7 +671,7 @@ public class WeatherWidget extends AppWidgetProvider {
         }
 
         Bitmap stitched = null;
-        try { stitched = baseF.get(15, TimeUnit.SECONDS); } catch (Exception e) { baseF.cancel(true); }
+        try { stitched = baseF.get(remainingMs(deadline), TimeUnit.MILLISECONDS); } catch (Exception e) { baseF.cancel(true); }
         Bitmap crop = null;
         if (stitched != null) {
             crop = Bitmap.createBitmap(stitched, left, top, 256, 256);
@@ -640,6 +693,11 @@ public class WeatherWidget extends AppWidgetProvider {
                             hhmm(radarTimes.get(i)), false, i, total, fs.nowIdx);
             // Unique names: ImageView.setImageURI ignores a URI equal to the current one.
             String name = "f_" + stamp + "_" + i + ".png";
+            // Cancelled by the caller's deadline: stop here so no orphan PNG is left behind.
+            if (Thread.currentThread().isInterrupted()) {
+                bm.recycle();
+                break;
+            }
             try (FileOutputStream fo = new FileOutputStream(new File(dir, name))) {
                 bm.compress(Bitmap.CompressFormat.PNG, 100, fo);
             } finally {
@@ -840,14 +898,14 @@ public class WeatherWidget extends AppWidgetProvider {
         }
     }
 
-    /** One animation frame (S=288 = 96dp at xxhdpi, one px per device px): base
+    /** One animation frame (S=360 = 120dp at xxhdpi, one px per device px): base
      * crop (dark fill when the base failed), radar or model overlay, centre
      * marker, big time label with a radar/prevision tag and a progress bar with a
      * tick on the "now" frame. Forecast frames also get an amber border so they
      * are never mistaken for observations. */
     static Bitmap rainFrame(Bitmap base, Bitmap radar, int left, int top, double[][] mm,
                             String label, boolean forecast, int idx, int total, int nowIdx) {
-        final int S = 288;
+        final int S = 360;
         Bitmap frame = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(frame);
         Paint smooth = new Paint();
@@ -866,41 +924,41 @@ public class WeatherWidget extends AppWidgetProvider {
         // Place marker: white dot on a dark ring, readable over any rain colour.
         Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
         dot.setColor(0xCC000000);
-        c.drawCircle(S / 2f, S / 2f, 6.5f, dot);
+        c.drawCircle(S / 2f, S / 2f, 8f, dot);
         dot.setColor(0xFFFFFFFF);
-        c.drawCircle(S / 2f, S / 2f, 4.8f, dot);
+        c.drawCircle(S / 2f, S / 2f, 6f, dot);
         if (forecast) {
             Paint border = new Paint();
             border.setStyle(Paint.Style.STROKE);
-            border.setStrokeWidth(3f);
+            border.setStrokeWidth(4f);
             border.setColor(AMBER);
-            c.drawRect(1.5f, 1.5f, S - 1.5f, S - 1.5f, border);
+            c.drawRect(2f, 2f, S - 2f, S - 2f, border);
         }
         Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
         tp.setColor(0xFFFFFFFF);
-        tp.setTextSize(30f);
+        tp.setTextSize(38f);
         tp.setFakeBoldText(true);
-        tp.setShadowLayer(4f, 2f, 2f, 0xCC000000);
-        c.drawText(label, 10f, 31f, tp);
+        tp.setShadowLayer(5f, 3f, 3f, 0xCC000000);
+        c.drawText(label, 13f, 39f, tp);
         Paint tag = new Paint(Paint.ANTI_ALIAS_FLAG);
         tag.setColor(forecast ? AMBER : 0xFFFFFFFF);
-        tag.setTextSize(17f);
+        tag.setTextSize(21f);
         tag.setFakeBoldText(true);
-        tag.setShadowLayer(3f, 1f, 1f, 0xCC000000);
-        c.drawText(forecast ? "prévision" : "radar", 10f, 50f, tag);
+        tag.setShadowLayer(4f, 1f, 1f, 0xCC000000);
+        c.drawText(forecast ? "prévision" : "radar", 13f, 63f, tag);
         // Progress, under the label (the bottom is covered by the "Pluie ..."
         // banner): filled up to this frame, white for observed / amber for
         // forecast, plus a tick where "now" is.
-        final float bx0 = 10f, bx1 = S - 10f;
+        final float bx0 = 13f, bx1 = S - 13f;
         final float step = total > 1 ? (bx1 - bx0) / (total - 1) : 0f;
         Paint bar = new Paint();
         bar.setColor(0x55FFFFFF);
-        c.drawRect(bx0, 56f, bx1, 60f, bar);
+        c.drawRect(bx0, 70f, bx1, 75f, bar);
         bar.setColor(forecast ? AMBER : 0xFFFFFFFF);
-        c.drawRect(bx0, 56f, bx0 + step * idx, 60f, bar);
+        c.drawRect(bx0, 70f, bx0 + step * idx, 75f, bar);
         bar.setColor(0xFFFFFFFF);
         float xn = bx0 + step * nowIdx;
-        c.drawRect(xn - 1f, 54f, xn + 1f, 62f, bar);
+        c.drawRect(xn - 1f, 68f, xn + 1f, 78f, bar);
         return frame;
     }
 
@@ -979,7 +1037,7 @@ public class WeatherWidget extends AppWidgetProvider {
     }
 
     /** Hourly precipitation-probability bars (fallback when no radar frame is
-     * available). Square 192 px (73 KB), the shape of the 96dp frame it fills,
+     * available). Square 192 px (73 KB), the shape of the 120dp map frame it fills,
      * so fitXY does not distort it. */
     static Bitmap rainBitmap(double[] probs, String[] labels) {
         final int S = 192;

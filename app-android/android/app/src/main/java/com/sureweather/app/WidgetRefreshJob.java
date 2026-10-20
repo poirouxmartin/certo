@@ -33,6 +33,11 @@ public class WidgetRefreshJob extends JobService {
     private static final AtomicBoolean RUNNING = new AtomicBoolean(false);
     private static final AtomicBoolean AGAIN = new AtomicBoolean(false);
 
+    /** getSystemService(Class) is API 23+ and minSdk is 22: go through the name. */
+    private static JobScheduler jobScheduler(Context context) {
+        return (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+    }
+
     /** Returns false when the job cannot be scheduled (caller falls back). */
     static boolean schedule(Context context) {
         try {
@@ -40,7 +45,7 @@ public class WidgetRefreshJob extends JobService {
                 AGAIN.set(true);
                 return true;
             }
-            JobScheduler js = context.getSystemService(JobScheduler.class);
+            JobScheduler js = jobScheduler(context);
             if (js == null) return false;
             JobInfo.Builder b = new JobInfo.Builder(JOB_ID,
                     new ComponentName(context, WidgetRefreshJob.class))
@@ -58,7 +63,7 @@ public class WidgetRefreshJob extends JobService {
     /** Idempotent: leaves an already pending heartbeat untouched (re-scheduling would restart its period). */
     static void schedulePeriodic(Context context) {
         try {
-            JobScheduler js = context.getSystemService(JobScheduler.class);
+            JobScheduler js = jobScheduler(context);
             if (js == null) return;
             if (Build.VERSION.SDK_INT >= 24 && js.getPendingJob(PERIODIC_ID) != null) return;
             JobInfo.Builder b = new JobInfo.Builder(PERIODIC_ID,
@@ -75,7 +80,7 @@ public class WidgetRefreshJob extends JobService {
 
     static void cancelPeriodic(Context context) {
         try {
-            JobScheduler js = context.getSystemService(JobScheduler.class);
+            JobScheduler js = jobScheduler(context);
             if (js != null) js.cancel(PERIODIC_ID);
         } catch (Throwable e) {
             android.util.Log.w(WeatherWidget.TAG, "periodic cancel failed: " + e);
@@ -85,16 +90,24 @@ public class WidgetRefreshJob extends JobService {
     @Override
     public boolean onStartJob(JobParameters params) {
         final Context ctx = getApplicationContext();
-        RUNNING.set(true);
+        // Only the one-shot is tracked: a running heartbeat must not swallow a tap (schedule() would
+        // return true without any job being able to serve it).
+        final boolean oneShot = params.getJobId() == JOB_ID;
+        if (oneShot) RUNNING.set(true);
         WeatherWidget.NET.execute(() -> {
             try {
                 do {
-                    WeatherWidget.refreshAllBlocking(ctx);
-                } while (AGAIN.getAndSet(false));
+                    do {
+                        WeatherWidget.refreshAllBlocking(ctx);
+                    } while (oneShot && AGAIN.getAndSet(false));
+                    if (oneShot) RUNNING.set(false);
+                    // A request that landed between the last AGAIN check and RUNNING=false saw
+                    // RUNNING and only set AGAIN: take it back instead of dropping it.
+                } while (oneShot && AGAIN.get() && RUNNING.compareAndSet(false, true));
             } catch (Throwable e) {
                 android.util.Log.w(WeatherWidget.TAG, "job refresh failed: " + e);
             } finally {
-                RUNNING.set(false);
+                if (oneShot) RUNNING.set(false);
                 try { jobFinished(params, false); } catch (Throwable ignored) {}
             }
         });

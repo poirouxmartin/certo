@@ -35,11 +35,14 @@
         </provider>
 
         <!-- Serves the widget radar PNGs to the launcher process (it cannot read
-             our cacheDir). Exported without permission: only f_*.png frames, read-only. -->
+             our cacheDir). Not exported: the frames are centred on the user's
+             place, so only the home app gets a per-URI read grant
+             (WeatherWidget.grantToLauncher). -->
         <provider
             android:name=".WidgetFrameProvider"
             android:authorities="${applicationId}.widgetframes"
-            android:exported="true" />
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <receiver
             android:name=".WeatherWidget"
@@ -58,6 +61,14 @@
             android:permission="android.permission.BIND_JOB_SERVICE"
             android:exported="false" />
     </application>
+
+    <!-- Package visibility (API 30+): find the home app to grant it the widget frames. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+    </queries>
 
     <!-- Permissions -->
 
