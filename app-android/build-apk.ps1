@@ -18,6 +18,16 @@ New-Item -ItemType Directory -Force -Path $dist | Out-Null
 # so no machine-specific local.properties has to be written.
 if (-not $env:ANDROID_HOME) { $env:ANDROID_HOME = Join-Path $env:LOCALAPPDATA 'Android\Sdk' }
 $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+# AGP 8.2 needs JDK 17, and the system JDK here is 11; the Adoptium 17 build
+# also failed the TLS handshake with dl.google.com (aapt2 download, 20 Oct
+# 2026). Android Studio's bundled JBR works: prefer it when present.
+$jbr = 'C:\Program Files\Android\Android Studio\jbr'
+if (Test-Path (Join-Path $jbr 'bin\java.exe')) { $env:JAVA_HOME = $jbr }
+# The JBR still dropped dl.google.com handshakes on this network (AAR
+# downloads, same day) while curl worked; IPv4 + TLS 1.2 fixed it.
+if (-not $env:GRADLE_OPTS) {
+    $env:GRADLE_OPTS = '-Djava.net.preferIPv4Stack=true -Dhttps.protocols=TLSv1.2 -Djdk.tls.client.protocols=TLSv1.2'
+}
 
 if (-not (Test-Path (Join-Path $appDir 'node_modules\@capacitor\cli'))) {
     throw 'node_modules missing: run "npm install" in app-android first'
