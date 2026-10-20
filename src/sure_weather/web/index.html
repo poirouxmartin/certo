@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#1b2a4a" />
+  <meta name="theme-color" content="#f2f5fa" />
   <meta name="description" content="Prévisions météo multi-sources avec confiance calibrée par variable." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -52,18 +52,18 @@
         </button>
         <div class="fav" id="fav-menu">
           <button class="btn btn--ghost" id="fav-open" type="button" data-i18n-title="fav" aria-haspopup="true" aria-expanded="false">
-            <span class="ic"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>
-            <span data-i18n="fav">Favoris</span>
+            <span class="ic"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>
+            <span class="fav__label" data-i18n="fav">Favoris</span>
           </button>
           <ul class="fav__menu" id="fav-list" hidden></ul>
         </div>
-        <form class="search" id="search-form" autocomplete="off">
-          <label class="sr-only" for="search-input" data-i18n="search">Rechercher</label>
-          <input class="search__input" id="search-input" type="search"
-                 data-i18n-ph="search_ph" placeholder="Ville, adresse, ou lat, lon…" />
-          <button class="btn btn--primary" type="submit" data-i18n="search">Rechercher</button>
-        </form>
       </div>
+      <form class="search" id="search-form" autocomplete="off">
+        <label class="sr-only" for="search-input" data-i18n="search">Rechercher</label>
+        <input class="search__input" id="search-input" type="search"
+               data-i18n-ph="search_ph" placeholder="Ville, adresse, ou lat, lon…" />
+        <button class="btn btn--primary" type="submit" data-i18n="search">Rechercher</button>
+      </form>
     </header>
 
     <!-- Update banner (new GitHub release) -->
@@ -81,14 +81,17 @@
     <main id="content" hidden>
       <!-- Location: a poster, not a form -->
       <section class="hero">
-        <div class="hero__sky" id="sky-icon" aria-hidden="true">☀️</div>
-        <div class="hero__main">
+        <div class="hero__head">
           <h1 class="hero__name">
-            <span id="loc-name">—</span>
+            <span class="hero__place" id="loc-name">—</span>
             <button class="fav__toggle" id="fav-btn" type="button" data-i18n-title="fav_add">☆</button>
           </h1>
           <div class="hero__computed" id="computed-at"></div>
-          <div class="hero__row">
+        </div>
+        <div class="hero__body">
+          <div class="hero__temp" id="now-temp">—°</div>
+          <div class="hero__sky" id="sky-icon" aria-hidden="true">☀️</div>
+          <div class="hero__chips">
             <div class="verdict" id="verdict" aria-live="polite"></div>
             <div class="hero__badges">
               <div class="hero__sure" id="sure-badge" hidden></div>
@@ -96,10 +99,7 @@
             </div>
           </div>
         </div>
-        <div class="hero__now">
-          <div class="hero__temp" id="now-temp">—°</div>
-          <div class="hero__sub" id="now-sub"></div>
-        </div>
+        <div class="hero__sub" id="now-sub"></div>
       </section>
 
       <!-- Hourly meteogram -->
@@ -112,16 +112,16 @@
             <button class="seg__btn" data-hours="8">8 h</button>
             <button class="seg__btn seg__btn--active" data-hours="24">24 h</button>
             <button class="seg__btn" data-hours="72">72 h</button>
-            <button class="seg__btn" data-hours="168">7 j</button>
+            <button class="seg__btn" data-hours="168" data-i18n="rng_7d">7 j</button>
           </div>
         </div>
         <div class="graph-tabs" id="graph-tabs">
-          <button class="graph-tab graph-tab--active" data-graph="temperature_2m">Temp</button>
-          <button class="graph-tab" data-graph="precipitation">Pluie</button>
-          <button class="graph-tab" data-graph="wind_speed_10m">Vent</button>
-          <button class="graph-tab" data-graph="pressure_msl">Pression</button>
-          <button class="graph-tab" data-graph="relative_humidity_2m">Humidité</button>
-          <button class="graph-tab" data-graph="uv_index">UV</button>
+          <button class="graph-tab graph-tab--active" data-graph="temperature_2m" data-i18n="gt_temp">Temp</button>
+          <button class="graph-tab" data-graph="precipitation" data-i18n="gt_rain">Pluie</button>
+          <button class="graph-tab" data-graph="wind_speed_10m" data-i18n="gt_wind">Vent</button>
+          <button class="graph-tab" data-graph="pressure_msl" data-i18n="gt_press">Pression</button>
+          <button class="graph-tab" data-graph="relative_humidity_2m" data-i18n="gt_hum">Humidité</button>
+          <button class="graph-tab" data-graph="uv_index" data-i18n="gt_uv">UV</button>
         </div>
         <div class="timeline__chart" id="timeline-chart"></div>
       </section>

@@ -599,7 +599,7 @@ async def _security_headers(request, call_next):
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https://tile.openstreetmap.org https://*.rainviewer.com; "
-        "connect-src 'self' https://geocoding-api.open-meteo.com;"
+        "connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com;"
     )
     response.headers.setdefault("Content-Security-Policy", csp)
     if request.url.path == "/sw.js":

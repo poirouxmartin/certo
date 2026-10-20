@@ -396,7 +396,7 @@ const WEATHER_ART = {
      + '<line x1="10" y1="10" x2="14.5" y2="14.5"/><line x1="33.5" y1="33.5" x2="38" y2="38"/>'
      + '<line x1="10" y1="38" x2="14.5" y2="33.5"/><line x1="33.5" y1="14.5" x2="38" y2="10"/></g>'
      + '<circle cx="24" cy="24" r="9" fill="#f0b429"/>',
-  night: '<path d="M31 6 a17 17 0 1 0 11 29 a14 14 0 0 1 -11 -29 z" fill="#aebdd4"/>',
+  night: '<path d="M31 6 a17 17 0 1 0 11 29 a14 14 0 0 1 -11 -29 z" fill="#7d92b8"/>',
   cloud: '<path d="M15 36 a8 8 0 0 1 -.6 -16 a10 10 0 0 1 19.4 -1.4 a7.5 7.5 0 0 1 1.2 14.9 z" fill="#c2cfdd"/>',
   partly: '<circle cx="17" cy="16" r="7" fill="#f0b429"/>'
         + '<g stroke="#f0b429" stroke-width="2.4" stroke-linecap="round">'
@@ -518,7 +518,7 @@ function applyThemeButton() {
   themeBtn.innerHTML = dark ? THEME_SVGS.dark : THEME_SVGS.light;
   themeBtn.title = dark ? tr("theme_light") : tr("theme_dark");
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = dark ? "#0c1424" : "#1b2a4a";
+  if (meta) meta.content = dark ? "#0c1424" : "#f2f5fa"; // = --bg of each theme
 }
 themeBtn.addEventListener("click", () => {
   const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
@@ -685,7 +685,7 @@ let backendDown = forceLocal;
    Releases also carry a sure-weather-vX.Y.Z.apk copy: v1.5.2 and older look for that name under the old repo path, which GitHub redirects since the repo rename (17 Oct 2026).
    Checked against a raw VERSION file (no rate-limit, CORS-open) — the
    api.github.com endpoint is unusable (60 req/h/IP, shared mobile NATs). */
-const APP_VERSION = "1.5.3";
+const APP_VERSION = "1.6.0";
 const APP_REPO = "poirouxmartin/certo";
 // Native-only bridge to AppUpdaterPlugin.java (registered in MainActivity).
 // Undefined in the browser/PWA, where the banner is a plain link to the APK.
@@ -1130,11 +1130,14 @@ function renderUvCard(byTime) {
   const cur = vals[0] ?? byTime[Object.keys(byTime)[0]]?.uv_index?.value ?? 0;
   const mx = Math.max(...vals, 0);
   const level = cur <= 2 ? tr("uv_low") : cur <= 5 ? tr("uv_mod") : cur <= 7 ? tr("uv_high") : cur <= 10 ? tr("uv_vhigh") : tr("uv_extreme");
-  const color = cur <= 2 ? "#22c55e" : cur <= 5 ? "#eab308" : cur <= 7 ? "#f97316" : cur <= 10 ? "#ef4444" : "#a855f7";
+  // Red/purple darkened so the white badge text reaches 4.5:1; the light
+  // greens/yellows/oranges take dark text instead.
+  const color = cur <= 2 ? "#22c55e" : cur <= 5 ? "#eab308" : cur <= 7 ? "#f97316" : cur <= 10 ? "#dc2626" : "#9333ea";
+  const badgeInk = cur <= 7 ? "#101b30" : "#fff";
   const pct = Math.max(0, Math.min(100, (cur / 11) * 100));
   // Compact single row: badge + gauge. Peak of the day in the title.
   elUv.innerHTML = `
-    <div class="sunuv__head"><span class="sunuv__title">${tr("uv_title")}</span><span class="sunuv__badge" style="background:${color}">${cur?.toFixed(1) ?? "—"} · ${level}</span></div>
+    <div class="sunuv__head"><span class="sunuv__title">${tr("uv_title")}</span><span class="sunuv__badge" style="background:${color};color:${badgeInk}">${cur?.toFixed(1) ?? "—"} · ${level}</span></div>
     <div class="sunuv__gauge" title="${escHtml(tr("uv_hint"))} · max ${mx.toFixed(1)}"><div class="sunuv__track"><div class="sunuv__fill" style="width:${pct}%;background:${color}"></div></div></div>`;
 }
 /* Air & pressure card removed (humidity/pressure live in the graph tabs,
@@ -1303,9 +1306,9 @@ function renderTimeline(times, byTime, graph = state.graph) {
   renderVerdict(times, byTime);
 
   const W = Math.max(chart.clientWidth || 600, 280);
-  const H = 300;
+  const H = 240; // was 300: a phone screen does not need a taller plot
   const padL = 38, padR = 10, padT = 56, padB = 26;
-  const rainH = graph === "precipitation" ? 0 : 42; // rain has its own curve, no bar zone
+  const rainH = graph === "precipitation" ? 0 : 34; // rain has its own curve, no bar zone
   const n = times.length;
   const colW = (W - padL - padR) / Math.max(n, 1);
   const innerW = W - padL - padR;
@@ -1443,34 +1446,43 @@ function renderTimeline(times, byTime, graph = state.graph) {
     const windDirs = graph === "wind_speed_10m"
       ? rows.map((r) => r.wind_direction_10m?.value)
       : null;
+    // Dots first, labels after (labels carry a halo and must sit on top).
     pts.forEach((p, i) => {
       const col = graph === "temperature_2m" ? cFn(p[2]) : base;
-      if (i % tStep === 0) {
-        parts.push(`<text x="${p[0].toFixed(1)}" y="${labelY(p[1]).toFixed(1)}" text-anchor="middle" class="mg-temp" fill="${col}">${round(p[2])}${suf}</text>`);
-        if (windDirs && windDirs[i] != null) {
-          const a = ((windDirs[i] + 180) % 360).toFixed(0);
-          parts.push(`<text x="${p[0].toFixed(1)}" y="${(p[1] + 16).toFixed(1)}" text-anchor="middle" class="mg-windarrow" transform="rotate(${a} ${p[0].toFixed(1)} ${(p[1] + 16).toFixed(1)})">➤</text>`);
-        }
-      }
       parts.push(`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.2" fill="${col}" style="stroke:var(--dot-stroke)"/>`);
     });
-    // Global min & max always labeled (max above, min below the curve) so a
-    // 7-day view shows every peak, not just sampled points.
-    if (pts.length > 2) {
-      let iMin = 0, iMax = 0;
-      pts.forEach((p, i) => {
-        if (p[2] < pts[iMin][2]) iMin = i;
-        if (p[2] > pts[iMax][2]) iMax = i;
-      });
-      const labeled = new Set();
-      pts.forEach((p, i) => { if (i % tStep === 0) labeled.add(i); });
-      const nearLabeled = (j) => { for (const l of labeled) if (Math.abs(l - j) <= 1) return true; return false; };
-      const col = (i) => (graph === "temperature_2m" ? cFn(pts[i][2]) : base);
-      if (!nearLabeled(iMax)) {
-        parts.push(`<text x="${pts[iMax][0].toFixed(1)}" y="${labelY(yFor(pts[iMax][2])).toFixed(1)}" text-anchor="middle" class="mg-temp" fill="${col(iMax)}">▲ ${round(pts[iMax][2])}${suf}</text>`);
-      }
-      if (iMin !== iMax && !nearLabeled(iMin)) {
-        parts.push(`<text x="${pts[iMin][0].toFixed(1)}" y="${(yFor(pts[iMin][2]) + 16).toFixed(1)}" text-anchor="middle" class="mg-temp" fill="${col(iMin)}">▼ ${round(pts[iMin][2])}${suf}</text>`);
+    // Label candidates in priority order: global min & max first (max above,
+    // min below the curve, so a 7-day view shows every peak), then the
+    // sampled points. A candidate too close to an already placed label is
+    // dropped (adjacent 13.9° / 13.3° used to overprint each other).
+    let iMin = 0, iMax = 0;
+    pts.forEach((p, i) => {
+      if (p[2] < pts[iMin][2]) iMin = i;
+      if (p[2] > pts[iMax][2]) iMax = i;
+    });
+    const showExt = pts.length > 2;
+    const colAt = (i) => (graph === "temperature_2m" ? cFn(pts[i][2]) : base);
+    const cands = [];
+    if (showExt) {
+      cands.push({ i: iMax, y: labelY(pts[iMax][1]), txt: `▲ ${round(pts[iMax][2])}${suf}` });
+      if (iMin !== iMax) cands.push({ i: iMin, y: pts[iMin][1] + 16, txt: `▼ ${round(pts[iMin][2])}${suf}` });
+    }
+    pts.forEach((p, i) => {
+      if (i % tStep !== 0 || (showExt && (i === iMax || i === iMin))) return;
+      cands.push({ i, y: labelY(p[1]), txt: `${round(p[2])}${suf}` });
+    });
+    const placed = [];
+    for (const c of cands) {
+      c.x = pts[c.i][0];
+      c.w = c.txt.length * 6.6; // ~12.5px bold glyph width
+      const clash = placed.some((q) => Math.abs(q.x - c.x) < Math.max(28, (q.w + c.w) / 2) && Math.abs(q.y - c.y) < 14);
+      if (clash) continue;
+      placed.push(c);
+      parts.push(`<text x="${c.x.toFixed(1)}" y="${c.y.toFixed(1)}" text-anchor="middle" class="mg-temp" fill="${colAt(c.i)}">${c.txt}</text>`);
+      if (windDirs && windDirs[c.i] != null) {
+        const py = pts[c.i][1] + 16;
+        const a = ((windDirs[c.i] + 180) % 360).toFixed(0);
+        parts.push(`<text x="${c.x.toFixed(1)}" y="${py.toFixed(1)}" text-anchor="middle" class="mg-windarrow" transform="rotate(${a} ${c.x.toFixed(1)} ${py.toFixed(1)})">➤</text>`);
       }
     }
   }
@@ -1572,7 +1584,7 @@ function renderConfidence(fc) {
     div.innerHTML = `
       <div class="var__head">
         <span class="var__label">${varLabel(v)}</span>
-        <span class="var__value" style="color:${color}">${cal.length ? tr("conf_sure_share", { p: pct, s: Math.round(sureShare * 100) }) : `${pct}% · ${tr("conf_na")}`}</span>
+        <span class="var__value">${cal.length ? tr("conf_sure_share", { p: pct, s: Math.round(sureShare * 100) }) : `${pct}% · ${tr("conf_na")}`}</span>
       </div>
       <div class="var__track">
         <div class="var__bar" style="width:${pct}%; background:${color}"></div>
@@ -1793,24 +1805,49 @@ document.getElementById("graph-tabs")?.addEventListener("click", (e) => {
 /* ---- Map & radar ---- */
 
 let map = null;
-let radarLayer = null;
 let modelLayer = null;
 let marker = null;
+// Frames are plain descriptors {kind: "past"|"nowcast"|"model", time, ...}
+// plus a transient Leaflet `layer` (null while unmounted) and `ready` (layer
+// fired "load"). Keeping the data apart from the layers lets us free every
+// layer when the radar is hidden or reloaded without losing the nowcast images.
 let radarFrames = [];
-let radarPlaying = false;
-let radarTimer = null;
+let radarNowIdx = 0; // last observed frame = "now"
+let radarPlaying = false; // user intent; the timer additionally needs visibility
+let radarTimer = null; // the ONLY playback timer (setTimeout chain)
 let radarRefreshTimer = null;
 let radarIdx = 0;
+let radarLoadedAt = 0;
+let radarCardVisible = false;
+let radarAutoDone = false;
+let radarHud = null;
+let radarAttr = "";
 let mapLayer = "radar";
-// One TileLayer instance per frame, created lazily on first display and kept:
-// Leaflet caches a layer's tiles, so scrubbing back to an already-seen frame
-// is instant instead of refetching every tile (and flickering) like when a
-// fresh layer was built for every frame change.
-const radarLayerCache = {};
-let currentRadarIdx = -1;
+let nowcastBounds = null;
+let nowcastInflight = null; // {bounds} of the request being fetched
+let nowcastPlace = "";
+let nowcastReqAt = 0;
+let nowcastAt = 0;
+let nowcastSeq = 0;
+let nowcastTimer = null;
 /* Wind arrows overlay. */
 let windLayer = null;
 let windTimer = null;
+
+// Radar tiles stop at z7 and the nowcast is ~10 km: past z12 each 256 px tile
+// is CSS-scaled x32+ (x2048 at z18 = 524 288 px), which can exhaust the
+// WebView renderer's GPU memory and kill the app.
+const OVERLAY_MAX_ZOOM = 12;
+// Below z8 the 7x7 grid points are >1 degree apart: the interpolated field
+// would invent rain between them, so only radar (+ model tiles) is shown.
+const NOWCAST_MIN_ZOOM = 8;
+// Each grid point counts as one Open-Meteo call (~10 000/day per IP, shared
+// behind mobile CGNAT).
+const NOWCAST_MIN_INTERVAL = 2 * 60 * 1000;
+const NOWCAST_RAMP = [
+  [0.1, [147, 197, 253]], [0.5, [59, 130, 246]], [2, [34, 197, 94]],
+  [5, [250, 204, 21]], [10, [249, 115, 22]], [20, [239, 68, 68]],
+];
 
 function initMap() {
   if (map) return;
@@ -1819,7 +1856,7 @@ function initMap() {
     el("radar-status").textContent = tr("radar_err");
     return;
   }
-  map = L.map("map", { zoomControl: true }).setView([state.lat, state.lon], 9);
+  map = L.map("map", { zoomControl: true, maxZoom: OVERLAY_MAX_ZOOM }).setView([state.lat, state.lon], 10);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 18,
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a>',
@@ -1846,12 +1883,111 @@ function initMap() {
     clearTimeout(windTimer);
     windTimer = setTimeout(refreshWindArrows, 600);
     scheduleLocalModelRefresh(900);
+    clearTimeout(nowcastTimer);
+    nowcastTimer = setTimeout(maybeRefetchNowcast, 1000);
   });
+  // Crossing NOWCAST_MIN_ZOOM adds/drops the nowcast frames right away.
+  map.on("zoomend", () => maybeRefetchNowcast(true));
+  // Frame time / observed-or-forecast tag, on the map itself so the
+  // timeline needs no decoding.
+  radarHud = document.createElement("div");
+  radarHud.className = "radar-hud";
+  radarHud.hidden = true;
+  radarHud.innerHTML = '<div class="radar-hud__time"></div><div class="radar-hud__tag"></div><div class="radar-hud__rel"></div>';
+  map.getContainer().appendChild(radarHud);
+}
+
+/* ---- Radar frames ---- */
+
+function makeFrameLayer(f) {
+  let layer;
+  if (f.kind === "nowcast") {
+    layer = L.imageOverlay(f.url, f.bounds, { opacity: 0, className: "radar-frame", interactive: false });
+    f.ready = true; // data URL: nothing to wait for
+  } else if (f.kind === "model") {
+    // Model forecast frame: our own precip tiles at +h hours.
+    layer = L.tileLayer(`/tile/precip/{z}/{x}/{y}.png?h=${f.hourOffset}`, {
+      opacity: 0, className: "radar-frame radar-model", maxNativeZoom: 9,
+      maxZoom: OVERLAY_MAX_ZOOM, noWrap: true, keepBuffer: 1,
+    });
+  } else {
+    const FrameLayer = L.TileLayer.extend({
+      getTileUrl(coords) {
+        const z = Math.max(5, Math.min(coords.z, 7));
+        const scale = Math.pow(2, coords.z - z);
+        return `${f.host}${f.path}/256/${z}/${Math.floor(coords.x / scale)}/${Math.floor(coords.y / scale)}/2/1_1_0.png`;
+      },
+    });
+    // L.TileLayer takes (url, options): passing the options first made
+    // them the url and dropped maxNativeZoom, so Leaflet asked for z8+
+    // tiles and each one drew its whole z7 parent: radar echoes shifted
+    // and broken at every tile seam. noWrap stops the same frame from being
+    // tiled repeatedly across the map.
+    layer = new FrameLayer("", {
+      opacity: 0, className: "radar-frame", maxNativeZoom: 7,
+      maxZoom: OVERLAY_MAX_ZOOM, noWrap: true, keepBuffer: 1,
+    });
+  }
+  // Pan/zoom starts new tile requests: blank until they land. imageOverlay
+  // has no such events and stays ready.
+  layer.on("loading", () => { f.ready = false; });
+  layer.on("load", () => { f.ready = true; });
+  return layer;
+}
+
+/* Preload ALL frames at once at opacity 0: showing a frame is then a pure CSS
+   opacity fade between layers that already hold their tiles (no blank flash). */
+function mountFrames() {
+  if (!map || mapLayer !== "radar") return;
+  for (const f of radarFrames) {
+    if (f.layer) continue;
+    try {
+      f.ready = false;
+      f.layer = makeFrameLayer(f);
+      f.layer.addTo(map);
+    } catch {
+      f.layer = null; // a bad frame is skipped, not fatal
+    }
+  }
+}
+
+function unmountFrame(f) {
+  if (f.layer && map) {
+    try { map.removeLayer(f.layer); } catch { /* already gone */ }
+  }
+  f.layer = null;
+  f.ready = false;
+}
+
+function syncRadarSlider() {
+  const slider = el("radar-slider");
+  if (!slider || !radarFrames.length) return;
+  slider.min = 0;
+  slider.max = radarFrames.length - 1;
+  slider.step = 1;
+  slider.disabled = false;
+  // "now" marker + amber future part of the track (see app.css radar block).
+  const pct = radarFrames.length > 1 ? (radarNowIdx / (radarFrames.length - 1)) * 100 : 100;
+  slider.style.setProperty("--radar-now", `${pct.toFixed(1)}%`);
+}
+
+function setFutureFrames(future) {
+  const past = radarFrames.filter((f) => f.kind === "past");
+  radarFrames.forEach((f) => { if (f.kind !== "past") unmountFrame(f); });
+  radarFrames = past.concat(future);
+  syncRadarSlider();
+  mountFrames();
+  showRadarFrame(Math.min(radarIdx, radarFrames.length - 1));
 }
 
 async function loadRadar() {
+  // render() calls us on every forecast; other layers own the status line.
+  if (mapLayer !== "radar") return;
   const status = el("radar-status");
   const token = reqToken; // stale guard: a fast place switch must not let the old radar win
+  // Radar frames are place-independent: every forecast render calls us, but
+  // remounting ~25 layers each time would flash and refetch for nothing.
+  if (radarFrames.length && Date.now() - radarLoadedAt < 120 * 1000) return;
   try {
     // Standalone: RainViewer directly (CORS-open), no backend proxy.
     const d = backendDown
@@ -1861,141 +1997,295 @@ async function loadRadar() {
         return r.json();
       });
     if (token !== reqToken) return;
-    const all = [...(d.radar?.past || []), ...(d.radar?.nowcast || [])];
-    if (!all.length) {
+    // radar.nowcast is empty on the free feed: the future comes from
+    // loadNowcast (and the model tiles), never from RainViewer.
+    const past = (d.radar?.past || []).map((f) => ({
+      kind: "past", host: d.host, path: f.path, time: f.time, layer: null, ready: false,
+    }));
+    if (!past.length) {
       status.textContent = tr("radar_nodata");
       return;
     }
-    radarFrames = all.map((f) => ({
-      host: d.host,
-      path: f.path,
-      time: f.time,
-      isNowcast: (f.path || "").includes("nowcast"),
-    }));
-    // Future frames (backend only): the free radar feed stops at the last
-    // observation, so the model takes over — one synthesized frame per hour
-    // ahead, rendered from our own precipitation tiles. Standalone has no
-    // tile renderer: live radar only.
-    if (!backendDown) {
-      const lastT = radarFrames[radarFrames.length - 1]?.time ?? Math.floor(Date.now() / 1000);
-      for (let h = 1; h <= 6; h++) {
-        radarFrames.push({
-          model: true,
-          hourOffset: h,
-          time: lastT + h * 3600,
-          isNowcast: true,
-        });
-      }
-    }
-    // Fresh frame index: cached layers point at stale tile paths.
-    for (const k of Object.keys(radarLayerCache)) {
-      const lyr = radarLayerCache[k];
-      if (lyr) map.removeLayer(lyr);
-      delete radarLayerCache[k];
-    }
-    currentRadarIdx = -1;
-    // Bind the timeline scrubber once frames are known.
-    const slider = el("radar-slider");
-    if (slider) {
-      slider.max = radarFrames.length - 1;
-      slider.min = 0;
-      slider.step = 1;
-      slider.value = radarFrames.length - 1;
-      slider.disabled = false;
-    }
-    if (!radarPlaying && mapLayer === "radar") showRadarFrame(radarFrames.length - 1);
-    // Warm the model tiles (server + browser cache) so the first playback
-    // through the +1h..+6h forecast doesn't stall on blank tiles.
-    // Standalone: no tile renderer, nothing to warm.
-    if (map && mapLayer === "radar" && !backendDown) {
-      const z = map.getZoom(), c = map.getCenter();
-      const n = 1 << z;
-      const tx = Math.floor(((c.lng + 180) / 360) * n);
-      const ty = Math.floor(((1 - Math.log(Math.tan((c.lat * Math.PI) / 180)) / Math.PI) / 2) * n);
-      for (let h = 1; h <= 6; h++) {
-        const img = new Image();
-        img.src = `/tile/precip/${z}/${tx}/${ty}.png?h=${h}`;
-      }
-    }
+    // Fresh frame index: mounted layers point at stale tile paths.
+    radarFrames.forEach(unmountFrame);
+    radarFrames = past;
+    radarNowIdx = past.length - 1;
+    radarLoadedAt = Date.now();
+    syncRadarSlider();
+    mountFrames();
+    showRadarFrame(radarPlaying ? Math.min(radarIdx, radarNowIdx) : radarNowIdx);
+    loadNowcast(true); // the reload above dropped the nowcast frames
+    maybeAutoplay();
     // Radar frames age (~10 min): refresh periodically while the tab lives.
     clearTimeout(radarRefreshTimer);
     radarRefreshTimer = setTimeout(() => {
-      if (mapLayer === "radar" && !radarPlaying) loadRadar();
+      if (mapLayer === "radar" && !document.hidden) loadRadar();
     }, 10 * 60 * 1000);
   } catch (e) {
     status.textContent = tr("radar_err");
     // Transient upstream failures retry on their own.
     setTimeout(() => {
-      if (map && !radarPlaying) loadRadar();
+      if (map) loadRadar();
     }, 30 * 1000);
   }
 }
 
+/* Future frames: Open-Meteo 15-min precipitation on a grid over the viewport,
+   one canvas image per slot. Backend adds hourly model tiles after them
+   (+3..+6 h); if the nowcast fails it falls back to the old +1..+6 h. */
+function renderNowcast(grid, n) {
+  const S = 160;
+  const cv = document.createElement("canvas");
+  cv.width = S; cv.height = S;
+  const ctx = cv.getContext("2d");
+  const img = ctx.createImageData(S, S);
+  for (let y = 0; y < S; y++) {
+    const gy = (y / (S - 1)) * (n - 1);
+    const y0 = Math.floor(gy), y1 = Math.min(n - 1, y0 + 1), fy = gy - y0;
+    for (let x = 0; x < S; x++) {
+      const gx = (x / (S - 1)) * (n - 1);
+      const x0 = Math.floor(gx), x1 = Math.min(n - 1, x0 + 1), fx = gx - x0;
+      const top = grid[y0 * n + x0] * (1 - fx) + grid[y0 * n + x1] * fx;
+      const bot = grid[y1 * n + x0] * (1 - fx) + grid[y1 * n + x1] * fx;
+      const v = top * (1 - fy) + bot * fy;
+      if (!(v >= 0.1)) continue; // transparent: stays 0,0,0,0
+      let c = NOWCAST_RAMP[NOWCAST_RAMP.length - 1][1];
+      for (let i = 0; i < NOWCAST_RAMP.length - 1; i++) {
+        const [v0, c0] = NOWCAST_RAMP[i], [v1, c1] = NOWCAST_RAMP[i + 1];
+        if (v < v1) {
+          const k = (v - v0) / (v1 - v0);
+          c = [0, 1, 2].map((j) => Math.round(c0[j] + (c1[j] - c0[j]) * k));
+          break;
+        }
+      }
+      const o = (y * S + x) * 4;
+      img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 153; // alpha 0.6
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return cv.toDataURL();
+}
+
+/* Does the fetched area nb still frame the view b (same centre within half a
+   view, not zoomed out by more than 1.5x)? */
+function nowcastCovers(nb, b) {
+  const h = b.getNorth() - b.getSouth(), w = b.getEast() - b.getWest();
+  return Math.abs(b.getCenter().lat - (nb.north + nb.south) / 2) <= h / 2 &&
+    Math.abs(b.getCenter().lng - (nb.east + nb.west) / 2) <= w / 2 &&
+    h <= (nb.north - nb.south) * 1.5;
+}
+
+/* force: skip the 2 min throttle (radar reload wiped the frames, zoom crossed
+   NOWCAST_MIN_ZOOM). Every point of the grid counts as one Open-Meteo call. */
+async function loadNowcast(force = false) {
+  if (!map || mapLayer !== "radar" || !radarFrames.length) return;
+  const b = map.getBounds();
+  const lastMs = radarFrames[radarNowIdx].time * 1000;
+  let future = [];
+  let seq;
+  if (map.getZoom() < NOWCAST_MIN_ZOOM) {
+    // Too coarse: radar (+ backend hourly model frames) only.
+    seq = ++nowcastSeq;
+    nowcastInflight = null;
+    nowcastBounds = null;
+  } else {
+    const view = { north: b.getNorth(), south: b.getSouth(), west: b.getWest(), east: b.getEast() };
+    // The request is registered BEFORE the await, so concurrent triggers
+    // (render, applyMapLayer, moveend) reuse it instead of each fetching.
+    if (nowcastInflight && nowcastCovers(nowcastInflight.bounds, b)) return;
+    const place = `${state.lat},${state.lon}`;
+    if (!force && place === nowcastPlace && Date.now() - nowcastReqAt < NOWCAST_MIN_INTERVAL) return;
+    seq = ++nowcastSeq;
+    nowcastInflight = { bounds: view };
+    nowcastPlace = place;
+    nowcastReqAt = Date.now();
+    try {
+      await fetchNowcastFrames(seq, view, lastMs, future);
+    } catch {
+      if (seq !== nowcastSeq) return;
+      // A failed refresh keeps the nowcast frames we already have.
+      if (radarFrames.some((f) => f.kind === "nowcast")) { nowcastInflight = null; return; }
+      nowcastBounds = null;
+      future = [];
+    }
+    if (seq !== nowcastSeq) return;
+    nowcastInflight = null;
+  }
+  if (!backendDown) {
+    // Backend mode (the flag is true when the backend is unreachable).
+    for (let h = future.length ? 3 : 1; h <= 6; h++) {
+      future.push({ kind: "model", hourOffset: h, time: Math.floor(lastMs / 1000) + h * 3600, layer: null, ready: false });
+    }
+  }
+  setFutureFrames(future);
+}
+
+async function fetchNowcastFrames(seq, view, lastMs, future) {
+  {
+    const g = await window.SureLocal.nowcastGrid(view);
+    if (seq !== nowcastSeq) return;
+    const bounds = [[g.bounds.south, g.bounds.west], [g.bounds.north, g.bounds.east]];
+    g.times.forEach((t, s) => {
+      if (t <= lastMs || future.length >= 8) return;
+      future.push({
+        kind: "nowcast", time: Math.floor(t / 1000), url: renderNowcast(g.grids[s], g.n),
+        bounds, layer: null, ready: false,
+      });
+    });
+    if (!future.length) throw new Error("nowcast empty");
+    nowcastBounds = g.bounds;
+    nowcastAt = Date.now();
+  }
+}
+
+/* Refetch when the view moved by more than half its size (or outgrew the
+   fetched area), or when the grid is older than the radar refresh. Also
+   re-evaluated on zoomend: nowcast frames only exist from NOWCAST_MIN_ZOOM. */
+function maybeRefetchNowcast(force = false) {
+  if (!map || mapLayer !== "radar" || !radarFrames.length) return;
+  const hasNowcast = radarFrames.some((f) => f.kind === "nowcast");
+  if (map.getZoom() < NOWCAST_MIN_ZOOM) {
+    if (hasNowcast) loadNowcast(true); // drop them, keep radar + model frames
+    return;
+  }
+  const b = map.getBounds(), nb = nowcastBounds;
+  if (nowcastInflight && nowcastCovers(nowcastInflight.bounds, b)) return;
+  const stale = !nb || !hasNowcast || Date.now() - nowcastAt > 10 * 60 * 1000 || !nowcastCovers(nb, b);
+  if (stale) loadNowcast(force);
+}
+
+/* ---- Display & playback ---- */
+
+function fmtRelMin(m) {
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? " " + String(m % 60).padStart(2, "0") : ""}`;
+}
+
+function updateRadarHud(f) {
+  const hhmm = new Date(f.time * 1000).toLocaleTimeString(LANG === "en" ? "en-GB" : "fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const fc = radarIdx > radarNowIdx;
+  // Past frames count from the "now" frame (tidy -10/-20 min); forecasts from
+  // the real clock, since the last radar image is already some minutes old.
+  const secs = fc ? f.time - Date.now() / 1000 : f.time - radarFrames[radarNowIdx].time;
+  const m = Math.round(secs / 300) * 5;
+  const rel = radarIdx === radarNowIdx || m === 0
+    ? tr("now_label")
+    : m < 0 ? tr("radar_ago", { t: fmtRelMin(-m) }) : tr("radar_in", { t: fmtRelMin(m) });
+  const tag = fc ? tr("radar_forecast") : tr("radar_observed");
+  if (radarHud) {
+    radarHud.hidden = mapLayer !== "radar";
+    radarHud.querySelector(".radar-hud__time").textContent = hhmm;
+    const tagEl = radarHud.querySelector(".radar-hud__tag");
+    tagEl.textContent = tag;
+    tagEl.classList.toggle("radar-hud__tag--fc", fc);
+    radarHud.querySelector(".radar-hud__rel").textContent = rel;
+  }
+  if (mapLayer === "radar") el("radar-status").textContent = tag;
+  const tinfo = el("radar-time");
+  if (tinfo) tinfo.textContent = hhmm;
+}
+
 function showRadarFrame(idx) {
   if (!map || !radarFrames.length) return;
-  radarIdx = ((idx % radarFrames.length) + radarFrames.length) % radarFrames.length;
-  const f = radarFrames[radarIdx];
-  // maxNativeZoom=7 upscales the native z7 tile at any deeper zoom, and
-  // noWrap stops Leaflet from tiling the same radar frame repeatedly across
-  // the map (the "same thing at different places" bug).
-  if (radarLayerCache[currentRadarIdx] && currentRadarIdx !== radarIdx) {
-    map.removeLayer(radarLayerCache[currentRadarIdx]);
-  }
-  let layer = radarLayerCache[radarIdx];
-  if (!layer) {
-    if (f.model) {
-      // Model forecast frame: our own precip tiles at +h hours.
-      layer = L.tileLayer(`/tile/precip/{z}/{x}/{y}.png?h=${f.hourOffset}`, {
-        opacity: 0.7,
-        maxNativeZoom: 9,
-        noWrap: true,
-        className: "radar-model",
-      });
-    } else {
-      const FrameLayer = L.TileLayer.extend({
-        getTileUrl(coords) {
-          const z = Math.max(5, Math.min(coords.z, 7));
-          const scale = Math.pow(2, coords.z - z);
-          return `${f.host}${f.path}/256/${z}/${Math.floor(coords.x / scale)}/${Math.floor(coords.y / scale)}/2/1_1_0.png`;
-        },
-      });
-      // L.TileLayer takes (url, options): passing the options first made
-      // them the url and dropped maxNativeZoom, so Leaflet asked for z8+
-      // tiles and each one drew its whole z7 parent: radar echoes shifted
-      // and broken at every tile seam.
-      layer = new FrameLayer("", { opacity: 0.75, maxNativeZoom: 7, noWrap: true });
-    }
-    radarLayerCache[radarIdx] = layer;
-  }
-  radarLayer = layer;
-  currentRadarIdx = radarIdx;
-  layer.addTo(map);
-  const t = new Date(f.time * 1000);
-  const hh = f.model ? `+${f.hourOffset} h` : t.toLocaleTimeString(LANG === "en" ? "en-GB" : "fr-FR");
-  const label = `${t.toLocaleDateString(LANG === "en" ? "en-GB" : "fr-FR", { day: "numeric", month: "short" })} ${hh}${f.isNowcast ? " " + tr("radar_prev") : ""}`;
-  el("radar-status").textContent = `${tr("radar_label")} ${label}`;
+  const n = radarFrames.length;
+  radarIdx = ((idx % n) + n) % n;
+  // Cross-fade via CSS (.radar-frame transition): only opacity changes, the
+  // layers all stay mounted with their tiles.
+  radarFrames.forEach((f, i) => {
+    if (!f.layer) return;
+    try {
+      f.layer.setOpacity(i === radarIdx ? (f.kind === "nowcast" ? 0.95 : f.kind === "model" ? 0.7 : 0.75) : 0);
+    } catch { /* a bad frame is skipped, not fatal */ }
+  });
+  try { updateRadarHud(radarFrames[radarIdx]); } catch { /* HUD is cosmetic */ }
   const slider = el("radar-slider");
   if (slider) slider.value = radarIdx;
-  const tinfo = el("radar-time");
-  if (tinfo) tinfo.textContent = hh;
+}
+
+function setPlayLabel() {
+  el("radar-play").textContent = radarPlaying ? tr("pause") : tr("play");
+}
+
+/* Playback is a setTimeout chain, never an interval: it waits for the next
+   frame's tiles (max 1.5 s) instead of showing blanks, and every code path that
+   (re)arms it clears the single `radarTimer` first, so two timers cannot run. */
+function syncRadarTimer() {
+  clearTimeout(radarTimer);
+  radarTimer = null;
+  if (!radarPlaying || document.hidden || !radarCardVisible || mapLayer !== "radar" || !map || radarFrames.length < 2) return;
+  radarTimer = setTimeout(() => stepRadar(0), 450);
+}
+
+function stepRadar(waited) {
+  radarTimer = null;
+  const n = radarFrames.length;
+  if (!radarPlaying || n < 2 || document.hidden || !radarCardVisible || mapLayer !== "radar") return;
+  let next = (radarIdx + 1) % n;
+  for (let k = 0; k < n && !radarFrames[next].layer; k++) next = (next + 1) % n; // skip unbuildable frames
+  const nf = radarFrames[next];
+  if (nf.layer && !nf.ready && waited < 1500) {
+    radarTimer = setTimeout(() => stepRadar(waited + 100), 100);
+    return;
+  }
+  showRadarFrame(next);
+  // Hold on "now" and on the last frame so the eye can read them.
+  const hold = next === radarNowIdx ? 1200 : next === n - 1 ? 1500 : 450;
+  radarTimer = setTimeout(() => stepRadar(0), hold);
+}
+
+function startRadarPlay() {
+  radarPlaying = true;
+  setPlayLabel();
+  if (radarIdx >= radarFrames.length - 1) showRadarFrame(0); // start from the oldest
+  syncRadarTimer();
+}
+
+function pauseRadarPlay() {
+  radarPlaying = false;
+  setPlayLabel();
+  syncRadarTimer();
 }
 
 function toggleRadarPlay() {
   if (!radarFrames.length) return;
-  if (radarPlaying) {
-    radarPlaying = false;
-    clearInterval(radarTimer);
-    el("radar-play").textContent = tr("play");
-  } else {
-    radarPlaying = true;
-    el("radar-play").textContent = tr("pause");
-    if (radarIdx >= radarFrames.length - 1) radarIdx = 0; // start from the oldest
-    showRadarFrame(radarIdx);
-    radarTimer = setInterval(() => {
-      radarIdx = (radarIdx + 1) % radarFrames.length;
-      showRadarFrame(radarIdx);
-    }, 500);
-  }
+  radarAutoDone = true; // the user took over: no more auto-start
+  if (radarPlaying) pauseRadarPlay();
+  else startRadarPlay();
+}
+
+// Auto-play once, the first time the map card is on screen.
+function maybeAutoplay() {
+  if (radarAutoDone || !radarCardVisible || document.hidden || mapLayer !== "radar" || radarFrames.length < 2) return;
+  radarAutoDone = true;
+  startRadarPlay();
+}
+
+function setRadarAttribution(on) {
+  const ac = map && map.attributionControl;
+  if (!ac) return;
+  if (radarAttr) { ac.removeAttribution(radarAttr); radarAttr = ""; }
+  if (on) { radarAttr = tr("radar_attr"); ac.addAttribution(radarAttr); }
+}
+
+function radarLegendHtml() {
+  // Same stops as NOWCAST_RAMP, spaced evenly (the ramp is roughly log).
+  const cols = ["#93C5FD", "#3B82F6", "#22C55E", "#FACC15", "#F97316", "#EF4444"];
+  const grad = cols.map((c, i) => `${c} ${i * 20}%`).join(",");
+  const tick = (label, pct) => `<span style="left:${pct}%">${label}</span>`;
+  return `<div class="radar-legend"><span class="radar-legend__end">${tr("radar_legend_lo")}</span>` +
+    `<div class="radar-legend__scale"><span class="radar-legend__bar" style="background:linear-gradient(90deg,${grad})"></span>` +
+    `<div class="radar-legend__ticks">${tick("0.5", 20)}${tick("2", 40)}${tick("5", 60)}${tick("10", 80)}${tick("20 mm/h", 100)}</div></div>` +
+    `<span class="radar-legend__end">${tr("radar_legend_hi")}</span></div>`;
+}
+
+document.addEventListener("visibilitychange", syncRadarTimer);
+if ("IntersectionObserver" in window) {
+  new IntersectionObserver((entries) => {
+    radarCardVisible = entries[entries.length - 1].isIntersecting;
+    if (radarCardVisible) maybeAutoplay();
+    syncRadarTimer();
+  }, { threshold: 0.3 }).observe(document.querySelector(".mapcard"));
+} else {
+  radarCardVisible = true;
 }
 
 /* Clicking anywhere on the map loads the forecast for that precise point:
@@ -2015,7 +2305,7 @@ async function onMapClick(e) {
 
 function centerMapOn(lat, lon, name) {
   if (!map) return;
-  map.setView([lat, lon], 9);
+  map.setView([lat, lon], 10);
   if (marker) {
     marker.setLatLng([lat, lon]);
     marker.setPopupContent(popupHtml(name, lat, lon));
@@ -2028,26 +2318,43 @@ function centerMapOn(lat, lon, name) {
    Standalone (no backend): the same layers render on-device from a viewport
    grid (see refreshLocalModelLayer). */
 function applyMapLayer() {
-  if (radarLayer) {
-    map.removeLayer(radarLayer);
-    radarLayer = null;
-    currentRadarIdx = -1;
-  }
+  if (!map) return;
   if (modelLayer) {
     map.removeLayer(modelLayer);
     modelLayer = null;
   }
   const isRadar = mapLayer === "radar";
+  // Overlays are upscaled past their native zoom: cap it (see OVERLAY_MAX_ZOOM);
+  // plain streets have real tiles up to z18.
+  map.setMaxZoom(mapLayer === "streets" ? 18 : OVERLAY_MAX_ZOOM);
+  // Free the radar layers whenever another layer is shown (render() calls us
+  // on every forecast, so on the radar we only mount what is missing).
+  if (!isRadar) radarFrames.forEach(unmountFrame);
+  setRadarAttribution(isRadar);
+  if (radarHud) radarHud.hidden = !isRadar;
   // The radar timeline + play button only make sense on the live radar layer.
   el("radar-play").hidden = !isRadar;
   el("radar-slider").parentElement.hidden = !isRadar;
   el("radar-status").textContent = "";
   if (isRadar) {
     const lg2 = document.getElementById("map-legend");
-    if (lg2) lg2.hidden = true;
-    if (radarFrames.length) showRadarFrame(radarFrames.length - 1);
+    if (lg2) {
+      lg2.innerHTML = radarLegendHtml();
+      lg2.hidden = false;
+    }
+    mountFrames();
+    if (radarFrames.length) {
+      showRadarFrame(radarIdx);
+      if (Date.now() - radarLoadedAt > 10 * 60 * 1000) loadRadar();
+      maybeRefetchNowcast();
+      maybeAutoplay();
+    } else {
+      loadRadar(); // render()'s call was skipped while another layer was active
+    }
+    syncRadarTimer();
     return;
   }
+  syncRadarTimer(); // stops playback off the radar layer
   if (mapLayer === "streets") {
     el("radar-status").textContent = tr("map_streets");
     const lg = document.getElementById("map-legend");
@@ -2086,7 +2393,7 @@ function applyMapLayer() {
   modelLayer = L.tileLayer(`/tile/${mapLayer}/{z}/{x}/{y}.png`, {
     opacity: 0.88,
     maxNativeZoom: 9, // model grid ~11 km: beyond z9 the backend upscales
-    maxZoom: 18,
+    maxZoom: OVERLAY_MAX_ZOOM,
   }).addTo(map);
 }
 
@@ -2198,10 +2505,8 @@ $("#radar-play").addEventListener("click", toggleRadarPlay);
 $("#radar-slider").addEventListener("input", (e) => {
   // Dragging the timeline scrubs to an exact radar frame: pause playback so
   // the animation doesn't fight the user's hand.
-  radarPlaying = false;
-  clearInterval(radarTimer);
-  const btn = el("radar-play");
-  if (btn) btn.textContent = "▶ Lecture";
+  radarAutoDone = true;
+  pauseRadarPlay();
   showRadarFrame(parseInt(e.target.value, 10));
 });
 

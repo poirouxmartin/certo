@@ -492,5 +492,46 @@ window.SureLocal = (() => {
     return { points };
   }
 
-  return { MODELS, LAYER_VARS, forecast, geocodeNominatim, radar, windGrid, modelGrid, lutColor, rainTiming };
+  /* Radar nowcast: Open-Meteo minutely_15 precipitation on an n×n grid over
+     the viewport (one multi-location GET, same call in backend and standalone
+     mode). minutely_15 gives mm over the PRECEDING 15 min, so ×4 = mm/h at the
+     slot time. Returns grids[slot][row*n+col] (row 0 = north) in mm/h. */
+  async function nowcastGrid(bounds, n = 7, signal) {
+    // The API rejects |lat| > 90; a zoomed-out viewport can exceed it.
+    const clampLat = (v) => Math.max(-89, Math.min(89, v));
+    const clampLon = (v) => Math.max(-180, Math.min(180, v));
+    const b = {
+      north: clampLat(bounds.north), south: clampLat(bounds.south),
+      west: clampLon(bounds.west), east: clampLon(bounds.east),
+    };
+    const lats = [], lons = [];
+    for (let i = 0; i < n; i++) {
+      lats.push(b.north + ((b.south - b.north) * i) / (n - 1));
+      lons.push(b.west + ((b.east - b.west) * i) / (n - 1));
+    }
+    const params = [];
+    for (const la of lats) for (const lo of lons) {
+      params.push(`latitude=${la.toFixed(3)}`, `longitude=${lo.toFixed(3)}`);
+    }
+    params.push("minutely_15=precipitation", "forecast_minutely_15=10", "timezone=UTC");
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    signal?.addEventListener("abort", () => ctrl.abort());
+    try {
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?${params.join("&")}`, { signal: ctrl.signal });
+      if (!r.ok) throw new Error(`nowcast ${r.status}`);
+      const samples = await r.json();
+      if (!Array.isArray(samples) || samples.length !== n * n) throw new Error("nowcast shape");
+      const times = (samples[0]?.minutely_15?.time || []).map((t) => new Date(t + "Z").getTime());
+      const grids = times.map((_, s) => Float32Array.from(samples, (smp) => {
+        const v = smp?.minutely_15?.precipitation?.[s];
+        return Number.isFinite(v) ? v * 4 : 0;
+      }));
+      return { n, bounds: b, times, grids };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return { MODELS, LAYER_VARS, forecast, geocodeNominatim, radar, windGrid, modelGrid, lutColor, rainTiming, nowcastGrid };
 })();
