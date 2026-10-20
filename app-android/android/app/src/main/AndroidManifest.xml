@@ -34,6 +34,13 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
+        <!-- Serves the widget radar PNGs to the launcher process (it cannot read
+             our cacheDir). Exported without permission: only f_*.png frames, read-only. -->
+        <provider
+            android:name=".WidgetFrameProvider"
+            android:authorities="${applicationId}.widgetframes"
+            android:exported="true" />
+
         <receiver
             android:name=".WeatherWidget"
             android:label="@string/app_name"
@@ -57,6 +64,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- WidgetRefreshJob has a network constraint: the scheduler refuses it without this. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- The periodic widget job is persisted: the scheduler requires this to re-arm it after a reboot. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />

@@ -183,9 +183,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:autoStart="true"
-                android:flipInterval="1500"
-                android:inAnimation="@android:anim/fade_in"
-                android:outAnimation="@android:anim/fade_out" />
+                android:flipInterval="600"
+                android:inAnimation="@anim/widget_fade_in"
+                android:outAnimation="@anim/widget_fade_out" />
 
             <TextView
                 android:id="@+id/widget_rain_when"
