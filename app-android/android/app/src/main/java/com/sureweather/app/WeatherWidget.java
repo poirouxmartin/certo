@@ -265,13 +265,25 @@ public class WeatherWidget extends AppWidgetProvider {
         }
     }
 
-    /** HOME packages, queried once per updateAll rather than once per frame. */
+    /** Home app(s) that may read the frames, queried once per updateAll. Only
+     * the DEFAULT launcher (the widget host): any app can declare a HOME filter,
+     * and the frames are centred on the user's place. Without a default yet
+     * (resolver chooser), only preinstalled home apps. */
     static List<String> homePackages(Context ctx) {
         List<String> out = new ArrayList<>();
         try {
+            android.content.pm.PackageManager pm = ctx.getPackageManager();
             Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
-            for (android.content.pm.ResolveInfo ri : ctx.getPackageManager().queryIntentActivities(home, 0)) {
-                if (ri.activityInfo != null) out.add(ri.activityInfo.packageName);
+            android.content.pm.ResolveInfo def = pm.resolveActivity(home, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
+            if (def != null && def.activityInfo != null && !"android".equals(def.activityInfo.packageName)) {
+                out.add(def.activityInfo.packageName);
+                return out;
+            }
+            for (android.content.pm.ResolveInfo ri : pm.queryIntentActivities(home, 0)) {
+                if (ri.activityInfo == null || ri.activityInfo.applicationInfo == null) continue;
+                if ((ri.activityInfo.applicationInfo.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0) {
+                    out.add(ri.activityInfo.packageName);
+                }
             }
         } catch (Throwable e) {
             android.util.Log.w(TAG, "home lookup failed: " + e);
