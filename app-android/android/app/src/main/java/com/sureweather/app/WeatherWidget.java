@@ -50,10 +50,17 @@ public class WeatherWidget extends AppWidgetProvider {
 
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor();
     static final String ACTION_REFRESH = "com.sureweather.app.WIDGET_REFRESH";
+    static final String ACTION_LOCK_DISMISSED = "com.sureweather.app.LOCK_DISMISSED";
     static final String TAG = "SureWidget";
     static final String STATE_PREFS = "certo_widget";
     private static final Object LOCK = new Object();
     private static final int AMBER = 0xFFFBBF24;
+    /** Hourly slots shown, and kept in the state (spares replace the hours
+     * that went by when a refresh is missed). */
+    static final int HOURS_SHOWN = 6;
+    static final int HOURS_KEPT = 9;
+    /** Rain chance under this (%) is left blank in the hourly strip. */
+    static final double RAIN_SHOWN_PROB = 20;
 
     /** System HTTP proxy (emulator -http-proxy, corporate proxies): plain
      * HttpURLConnection does NOT always follow the APN proxy, so read the
@@ -186,7 +193,8 @@ public class WeatherWidget extends AppWidgetProvider {
 
     @Override
     public void onDisabled(Context context) {
-        WidgetRefreshJob.cancelPeriodic(context);
+        // The heartbeat also feeds the lock-screen notification.
+        if (!LockScreenWeather.isEnabled(context)) WidgetRefreshJob.cancelPeriodic(context);
         try {
             File[] fs = framesDir(context).listFiles();
             if (fs != null) for (File f : fs) {
@@ -232,15 +240,25 @@ public class WeatherWidget extends AppWidgetProvider {
             } catch (Exception ignored) {}
             return;
         }
+        // Lock-screen notification swiped away: the user wants it gone, do
+        // not post it again at the next refresh (re-enabled from the app).
+        if (ACTION_LOCK_DISMISSED.equals(intent != null ? intent.getAction() : null)) {
+            LockScreenWeather.setEnabled(context, false);
+            if (allIds(context, AppWidgetManager.getInstance(context)).length == 0) {
+                WidgetRefreshJob.cancelPeriodic(context);
+            }
+            return;
+        }
         super.onReceive(context, intent);
     }
 
     /** From the app (leaving it: the place may have changed; coming back: only
-     * when the cached data is older than 10 min). No-op without any widget. */
+     * when the cached data is older than 10 min). No-op without any widget
+     * nor lock-screen notification. */
     static void requestRefresh(Context ctx, boolean onlyIfStale) {
         try {
             AppWidgetManager manager = AppWidgetManager.getInstance(ctx);
-            if (allIds(ctx, manager).length == 0) return;
+            if (allIds(ctx, manager).length == 0 && !LockScreenWeather.isEnabled(ctx)) return;
             if (onlyIfStale) {
                 JSONObject st = loadState(ctx);
                 if (st != null && System.currentTimeMillis() - st.optLong("fetchedAt", 0) < 10 * 60 * 1000L) return;
@@ -304,9 +322,15 @@ public class WeatherWidget extends AppWidgetProvider {
     static void updateAll(Context ctx, AppWidgetManager manager, int[] ids, JSONObject st,
                           List<String> frames, int nowIdx) {
         List<String> homes = homePackages(ctx);
+        // A lock-screen instance is hosted by SystemUI, not by the launcher.
+        List<String> keyguard = new ArrayList<>(homes);
+        keyguard.add("com.android.systemui");
         for (int id : ids) {
             try {
-                manager.updateAppWidget(id, buildViews(ctx, id, st, frames, nowIdx, homes));
+                boolean onLock = manager.getAppWidgetOptions(id).getInt(
+                        AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1)
+                        == android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD;
+                manager.updateAppWidget(id, buildViews(ctx, id, st, frames, nowIdx, onLock ? keyguard : homes));
             } catch (Throwable e) {
                 android.util.Log.w(TAG, "updateAppWidget failed id=" + id + ": " + e);
             }
@@ -339,17 +363,16 @@ public class WeatherWidget extends AppWidgetProvider {
         v.setTextViewText(R.id.widget_when, st != null ? st.optString("when", "") : "");
         v.setTextViewText(R.id.widget_rain_when, st != null ? st.optString("rain", "") : "");
 
-        // +1h … +6h strip (fixed slots, hidden when missing).
+        // Next hours strip (fixed slots, hidden when missing).
         int[] idsTime = {R.id.h0_time, R.id.h1_time, R.id.h2_time, R.id.h3_time, R.id.h4_time, R.id.h5_time};
         int[] idsIcon = {R.id.h0_icon, R.id.h1_icon, R.id.h2_icon, R.id.h3_icon, R.id.h4_icon, R.id.h5_icon};
         int[] idsTemp = {R.id.h0_temp, R.id.h1_temp, R.id.h2_temp, R.id.h3_temp, R.id.h4_temp, R.id.h5_temp};
         int[] idsRain = {R.id.h0_rain, R.id.h1_rain, R.id.h2_rain, R.id.h3_rain, R.id.h4_rain, R.id.h5_rain};
         int[] idsWind = {R.id.h0_wind, R.id.h1_wind, R.id.h2_wind, R.id.h3_wind, R.id.h4_wind, R.id.h5_wind};
-        int[] idsPress = {R.id.h0_press, R.id.h1_press, R.id.h2_press, R.id.h3_press, R.id.h4_press, R.id.h5_press};
         int[] idsBox = {R.id.h0, R.id.h1, R.id.h2, R.id.h3, R.id.h4, R.id.h5};
-        JSONArray hours = st != null ? st.optJSONArray("hours") : null;
-        for (int i = 0; i < 6; i++) {
-            JSONObject h = hours != null ? hours.optJSONObject(i) : null;
+        List<JSONObject> hours = upcomingHours(st, System.currentTimeMillis(), HOURS_SHOWN);
+        for (int i = 0; i < HOURS_SHOWN; i++) {
+            JSONObject h = i < hours.size() ? hours.get(i) : null;
             if (h == null) {
                 v.setViewVisibility(idsBox[i], View.GONE);
                 continue;
@@ -360,12 +383,17 @@ public class WeatherWidget extends AppWidgetProvider {
             v.setTextViewText(idsTemp[i], h.optString("temp", ""));
             v.setTextViewText(idsRain[i], h.optString("rain", ""));
             v.setTextViewText(idsWind[i], h.optString("wind", ""));
-            v.setTextViewText(idsPress[i], h.optString("press", ""));
         }
 
         // Mini rain ANIMATION: one ViewFlipper child per frame file, opened on
         // the "now" frame. Frames whose file the system purged from the cache
         // are skipped. Without any frame: the probability bars from the cached hours.
+        /* removeAllViews first: a host REAPPLIES an update whose layout id is
+         * unchanged onto the existing views (AppWidgetHostView), and addView
+         * then appends to the previous children. Without it every refresh
+         * stacked its frames after the old ones, so the animation kept
+         * replaying stale radar images and times. */
+        v.removeAllViews(R.id.widget_rain_flipper);
         int shown = 0, newNow = 0;
         if (frames != null) {
             for (int i = 0; i < frames.size(); i++) {
@@ -382,19 +410,35 @@ public class WeatherWidget extends AppWidgetProvider {
         }
         if (shown > 0) {
             v.setDisplayedChild(R.id.widget_rain_flipper, newNow);
-        } else if (hours != null && hours.length() > 0) {
-            double[] probs = new double[hours.length()];
-            String[] labels = new String[hours.length()];
+        } else if (!hours.isEmpty()) {
+            double[] probs = new double[hours.size()];
+            String[] labels = new String[hours.size()];
             for (int i = 0; i < probs.length; i++) {
-                JSONObject h = hours.optJSONObject(i);
-                probs[i] = h != null ? h.optDouble("p", 0) : 0;
-                labels[i] = h != null ? h.optString("t", "") : "";
+                probs[i] = hours.get(i).optDouble("p", 0);
+                labels[i] = hours.get(i).optString("t", "");
             }
             RemoteViews fv = new RemoteViews(ctx.getPackageName(), R.layout.widget_rain_frame);
             fv.setImageViewBitmap(R.id.widget_rain_frame_img, rainBitmap(probs, labels));
             v.addView(R.id.widget_rain_flipper, fv);
         }
         return v;
+    }
+
+    /** The first `max` cached hours still ahead of `now` (the slot labelled
+     * "15h" is dropped from 15:00). Hours without a stamp (state saved by
+     * 1.6.0) are kept as they are. */
+    static List<JSONObject> upcomingHours(JSONObject st, long now, int max) {
+        List<JSONObject> out = new ArrayList<>();
+        JSONArray hours = st != null ? st.optJSONArray("hours") : null;
+        if (hours == null) return out;
+        for (int i = 0; i < hours.length() && out.size() < max; i++) {
+            JSONObject h = hours.optJSONObject(i);
+            if (h == null) continue;
+            long ts = h.optLong("ts", 0);
+            if (ts > 0 && ts <= now) continue;
+            out.add(h);
+        }
+        return out;
     }
 
     // ---------------------------------------------------------------- refresh
@@ -409,7 +453,8 @@ public class WeatherWidget extends AppWidgetProvider {
             try {
                 AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
                 int[] ids = allIds(ctx, mgr);
-                if (ids.length == 0) return;
+                boolean lock = LockScreenWeather.isEnabled(ctx);
+                if (ids.length == 0 && !lock) return;
                 final Place pl = readPlace(ctx);
                 JSONObject old = loadState(ctx);
                 boolean samePlace = old != null
@@ -421,7 +466,9 @@ public class WeatherWidget extends AppWidgetProvider {
                 final long stamp = t0;
                 // One absolute budget shared by the outer wait and every inner wait of buildFrames.
                 final long deadline = System.currentTimeMillis() + 20_000L;
-                Future<FrameSet> framesF = NET.submit(() -> buildFrames(ctx, pl.lat, pl.lon, stamp, deadline));
+                // The radar frames are only drawn by the widget.
+                Future<FrameSet> framesF = ids.length == 0 ? null
+                        : NET.submit(() -> buildFrames(ctx, pl.lat, pl.lon, stamp, deadline));
 
                 // Stage 1: forecast.
                 JSONObject st = null;
@@ -436,7 +483,9 @@ public class WeatherWidget extends AppWidgetProvider {
                 }
                 saveState(ctx, st);
                 updateAll(ctx, mgr, ids, st, oldFrames, oldNow);
+                if (lock) LockScreenWeather.show(ctx, st);
                 android.util.Log.d(TAG, "stage 1 (forecast) " + (System.currentTimeMillis() - t0) + " ms");
+                if (framesF == null) return;
 
                 // Stage 2: radar frames.
                 FrameSet fs = null;
@@ -492,7 +541,8 @@ public class WeatherWidget extends AppWidgetProvider {
         HttpURLConnection c = openConn(ctx,
                 "https://api.open-meteo.com/v1/forecast?latitude=" + pl.lat
                 + "&longitude=" + pl.lon
-                + "&current=temperature_2m,weather_code&hourly=temperature_2m,weather_code,precipitation_probability,wind_speed_10m,wind_direction_10m,pressure_msl"
+                + "&current=temperature_2m,weather_code,precipitation,cloud_cover"
+                + "&hourly=temperature_2m,weather_code,precipitation,precipitation_probability,cloud_cover,wind_speed_10m,wind_direction_10m"
                 + "&minutely_15=precipitation&wind_speed_unit=ms&timezone=auto&forecast_days=2");
         String body;
         try {
@@ -503,7 +553,10 @@ public class WeatherWidget extends AppWidgetProvider {
         if (body == null) throw new java.io.IOException("forecast http error");
         JSONObject root = new JSONObject(body);
         JSONObject cur = root.getJSONObject("current");
-        String[] cond = conditionFor(cur.optInt("weather_code", 3));
+        // current.precipitation covers the preceding 15 min: x4 for mm/h.
+        double curMm = cur.has("precipitation") ? cur.optDouble("precipitation", Double.NaN) * 4.0 : Double.NaN;
+        String[] cond = WeatherIcons.condition(cur.optInt("weather_code", 3), curMm, Double.NaN,
+                cur.optDouble("cloud_cover", Double.NaN));
         String minStart = null; // "14:35" of next rain at 15-min precision
         // 15-min rain start (best single-model series available).
         try {
@@ -547,9 +600,11 @@ public class WeatherWidget extends AppWidgetProvider {
             JSONArray temps = hourly.optJSONArray("temperature_2m");
             JSONArray codes = hourly.optJSONArray("weather_code");
             JSONArray probs = hourly.optJSONArray("precipitation_probability");
+            JSONArray mms = hourly.optJSONArray("precipitation");
+            JSONArray clouds = hourly.optJSONArray("cloud_cover");
             JSONArray winds = hourly.optJSONArray("wind_speed_10m");
             JSONArray wdirs = hourly.optJSONArray("wind_direction_10m");
-            JSONArray press = hourly.optJSONArray("pressure_msl");
+            SimpleDateFormat hourFmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US);
             String curTime = cur.optString("time", "");
             String nowPrefix = curTime.substring(0, Math.min(13, curTime.length()));
             if (times != null) {
@@ -560,26 +615,31 @@ public class WeatherWidget extends AppWidgetProvider {
                 }
                 int count = Math.min(12, times.length() - start);
                 String[] arrows = {"↑", "↗", "→", "↘", "↓", "↙", "←", "↖"};
-                for (int h = 1; h <= 6 && h < count; h++) {
+                // Up to HOURS_KEPT slots, epoch-stamped: a bind after a missed
+                // refresh drops the past ones (buildViews) instead of showing them.
+                for (int h = 1; h <= HOURS_KEPT && h < count; h++) {
                     String ts = times.optString(start + h, "");
                     double temp = temps != null ? temps.optDouble(start + h, Double.NaN) : Double.NaN;
                     if (ts.length() < 13 || Double.isNaN(temp)) continue;
                     double prob = probs != null ? probs.optDouble(start + h, 0) : 0;
+                    double mm = mms != null ? mms.optDouble(start + h, Double.NaN) : Double.NaN;
+                    double cloud = clouds != null ? clouds.optDouble(start + h, Double.NaN) : Double.NaN;
                     double wind = winds != null ? winds.optDouble(start + h, Double.NaN) : Double.NaN;
                     int wdir = wdirs != null ? wdirs.optInt(start + h, -1) : -1;
-                    double pr = press != null ? press.optDouble(start + h, Double.NaN) : Double.NaN;
                     String wTxt = "";
                     if (!Double.isNaN(wind)) {
                         String ar = wdir >= 0 ? arrows[((int) Math.round((((wdir + 180) % 360) / 45.0))) % 8] : "";
                         wTxt = ar + Math.round(wind * 3.6);
                     }
                     JSONObject ho = new JSONObject();
+                    try { ho.put("ts", hourFmt.parse(ts.substring(0, 16)).getTime()); } catch (Exception ignored) {}
                     ho.put("t", ts.substring(11, 13) + "h");
-                    ho.put("icon", conditionFor(codes != null ? codes.optInt(start + h, 3) : 3)[0]);
+                    ho.put("icon", WeatherIcons.condition(codes != null ? codes.optInt(start + h, 3) : 3,
+                            mm, prob, cloud)[0]);
                     ho.put("temp", String.valueOf(Math.round(temp)) + "°");
-                    ho.put("rain", "💧" + Math.round(prob) + "%");
+                    // Low chances are noise on a glance widget: blank under RAIN_SHOWN_PROB.
+                    ho.put("rain", prob >= RAIN_SHOWN_PROB ? "💧" + Math.round(prob) + "%" : "");
                     ho.put("wind", wTxt);
-                    ho.put("press", Double.isNaN(pr) ? "" : String.valueOf(Math.round(pr)));
                     ho.put("p", prob);
                     hoursOut.put(ho);
                 }
@@ -1079,19 +1139,4 @@ public class WeatherWidget extends AppWidgetProvider {
         return bmp;
     }
 
-    /** WMO weather-code → {emoji, short French label}. */
-    static String[] conditionFor(int code) {
-        if (code == 0) return new String[]{"☀️", "Dégagé"};
-        if (code == 1) return new String[]{"🌤️", "Peu nuageux"};
-        if (code == 2) return new String[]{"⛅", "Partiellement nuageux"};
-        if (code == 3) return new String[]{"☁️", "Couvert"};
-        if (code == 45 || code == 48) return new String[]{"🌫️", "Brouillard"};
-        if (code >= 51 && code <= 57) return new String[]{"🌦️", "Bruine"};
-        if (code == 56 || code == 57) return new String[]{"🌧️", "Bruine verglaçante"};
-        if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return new String[]{"🌧️", "Pluie"};
-        if ((code >= 71 && code <= 77) || code == 85 || code == 86) return new String[]{"❄️", "Neige"};
-        if (code == 95) return new String[]{"⛈️", "Orage"};
-        if (code == 96 || code == 99) return new String[]{"⛈️", "Orage grêle"};
-        return new String[]{"☁️", ""};
-    }
 }

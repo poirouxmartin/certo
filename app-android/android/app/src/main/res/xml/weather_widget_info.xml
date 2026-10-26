@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 2 rows: the content (header + now + 6-hour strip) is ~170 dp tall, a
      third row was left empty (Martin's phone, 16 Oct 2026). 110 dp = the
-     2-cell minimum of the launcher sizing formula (70 * n - 30). -->
+     2-cell minimum of the launcher sizing formula (70 * n - 30).
+     keyguard: offered by the hosts that still take lock-screen widgets
+     (Android 15+ tablet hub, some OEM lock screens). Stock phones have none:
+     there the lock screen gets LockScreenWeather's notification instead. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="320dp"
     android:minHeight="110dp"
@@ -13,5 +16,5 @@
     android:initialLayout="@layout/widget_weather"
     android:previewLayout="@layout/widget_weather"
     android:description="@string/widget_desc"
-    android:widgetCategory="home_screen"
+    android:widgetCategory="home_screen|keyguard"
     android:resizeMode="horizontal|vertical" />

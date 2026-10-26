@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar icon of the lock-screen notification: the Certo sun of the
+     app logo, white only (Android masks small icons to their alpha). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:pathData="M24,5L24,11M24,37L24,43M5,24L11,24M37,24L43,24M10.6,10.6L14.8,14.8M33.2,33.2L37.4,37.4M10.6,37.4L14.8,33.2M33.2,14.8L37.4,10.6" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M24,15.5a8.5,8.5 0,1 1,0 17a8.5,8.5 0,1 1,0 -17z" />
+</vector>

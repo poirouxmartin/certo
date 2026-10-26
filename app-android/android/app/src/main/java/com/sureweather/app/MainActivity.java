@@ -22,10 +22,13 @@ public class MainActivity extends BridgeActivity {
         // Must run before super.onCreate(): the bridge is created there and only
         // plugins registered beforehand are visible to the WebView.
         registerPlugin(AppUpdaterPlugin.class);
+        registerPlugin(LockScreenPlugin.class);
         super.onCreate(savedInstanceState);
         try {
-            // Without a widget there is nothing to refresh: no persisted 15 min network wake-up.
-            if (WeatherWidget.allIds(this, AppWidgetManager.getInstance(this)).length > 0) {
+            // Without a widget nor the lock-screen notification there is nothing to
+            // refresh: no persisted 15 min network wake-up.
+            if (WeatherWidget.allIds(this, AppWidgetManager.getInstance(this)).length > 0
+                    || LockScreenWeather.isEnabled(this)) {
                 WidgetRefreshJob.schedulePeriodic(this); // idempotent: self-heals a lost job
             } else {
                 WidgetRefreshJob.cancelPeriodic(this);

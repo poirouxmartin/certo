@@ -80,4 +80,6 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Lock-screen weather notification (LockScreenWeather), asked when the user turns it on. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

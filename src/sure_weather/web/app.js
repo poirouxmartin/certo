@@ -694,6 +694,30 @@ const APP_REPO = "poirouxmartin/certo";
 // as proxies on Capacitor.Plugins instead (checked over CDP on the emulator).
 const AppUpdater = isNativeApp ? window.Capacitor?.Plugins?.AppUpdater : undefined;
 
+/* Lock-screen weather (LockScreenPlugin.java): Android phones take no
+   third-party lock-screen widget, so the APK posts a silent notification
+   visible before unlocking. Opt-in toggle, native app only. */
+const LockScreen = isNativeApp ? window.Capacitor?.Plugins?.LockScreen : undefined;
+const lockBtn = document.getElementById("lock-btn");
+function showLockState(st) {
+  const on = !!(st && st.enabled);
+  lockBtn.textContent = on ? "🔒✓" : "🔒";
+  lockBtn.setAttribute("aria-pressed", String(on));
+  lockBtn.title = tr(on ? "lock_on" : "lock_off");
+  lockBtn.hidden = false;
+}
+if (LockScreen && lockBtn) {
+  LockScreen.getState().then(showLockState).catch(() => {});
+  lockBtn.addEventListener("click", async () => {
+    try {
+      const on = lockBtn.getAttribute("aria-pressed") !== "true";
+      showLockState(await LockScreen.setEnabled({ enabled: on }));
+    } catch (e) {
+      lockBtn.title = e?.message || String(e);
+    }
+  });
+}
+
 function cmpVersions(a, b) {
   const pa = String(a).replace(/^v/, "").split(".").map((x) => parseInt(x, 10) || 0);
   const pb = String(b).replace(/^v/, "").split(".").map((x) => parseInt(x, 10) || 0);
