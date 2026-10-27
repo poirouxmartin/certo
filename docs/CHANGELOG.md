@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.6.1 (2026-10-27)
+
+### Lock screen
+
+- Optional weather on the lock screen (🔒 button in the app): a silent, ongoing, public notification with temperature, condition and the next 5 hours, refreshed with the widget every 15 min. Swiping it away turns it off.
+- Limitation: phones have no third-party lock-screen widgets (removed in Android 5; the Android 15+ return is limited to the tablet hub, and OEM lock screens only list their own), so a notification is the one surface every phone shows before unlocking.
+
+### Widget
+
+- Radar fix: frames piled up in the flipper on each refresh, so the animation and its time label could freeze on old frames.
+- Less clutter: pressure removed, 6 hours shown, rain chance hidden under 20 %.
+- Rain icon refined from mm/h, probability and cloud cover: no rain icon for traces under 0.2 mm/h, light-rain icon under 1 mm/h.
+
 ## 1.6.0 (2026-10-20)
 
 ### Widget
