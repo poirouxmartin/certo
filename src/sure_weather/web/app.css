@@ -379,6 +379,31 @@ html[data-theme="dark"] .hero__sky { filter: none; }
   cursor: default;
 }
 .sure-badge__ic { margin-right: 3px; }
+/* The trust pill is a button (opens the confidence sheet): drop UA chrome. */
+button.sure-badge { border: 0; font-family: inherit; cursor: pointer; }
+.hero__computed--stale { color: var(--amber-ink); font-weight: 600; }
+.conf-info { flex: none; width: 28px; height: 28px; padding: 0; border-radius: 999px; font-weight: 700; }
+
+/* ---- First launch: my location or a city ---- */
+.welcome { text-align: center; padding: 28px 20px; margin-top: 16px; }
+.welcome[hidden] { display: none; }
+.welcome__title { font-size: 22px; font-weight: 700; margin: 0 0 8px; }
+.welcome__text { color: var(--ink-soft); font-size: 14.5px; line-height: 1.45; margin: 0 auto 18px; max-width: 34em; }
+.welcome__locate { font-size: 16px; padding: 12px 22px; }
+.welcome__msg { color: var(--amber-ink); font-size: 14px; margin: 12px 0 0; }
+.welcome__or { color: var(--ink-faint); font-size: 13px; margin: 16px 0 10px; }
+.welcome__search { max-width: 26em; margin: 0 auto; }
+
+/* ---- Confidence sheet (dialog) ---- */
+.sheet {
+  max-width: 30em; width: calc(100% - 32px); border: 0; border-radius: var(--r-lg);
+  padding: 20px 22px; background: var(--card); color: var(--ink); box-shadow: var(--shadow-lg);
+  font-size: 14.5px; line-height: 1.5;
+}
+.sheet::backdrop { background: rgba(16, 27, 48, .45); }
+.sheet__title { font-size: 18px; margin: 0 0 10px; }
+.sheet p { margin: 0 0 10px; color: var(--ink-soft); }
+.sheet form { text-align: right; margin-top: 6px; }
 
 /* ---- Badges: *-ink colours are theme-aware (>= 4.5:1 on their tint) ---- */
 .sure--ok { background: rgba(15,157,88,.13); color: var(--green-ink); }

@@ -43,10 +43,10 @@
         <button class="btn btn--ghost" id="refresh-btn" type="button" data-i18n-title="refresh" title="Actualiser">
           <span class="ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg></span>
         </button>
-        <button class="btn btn--ghost" id="notif-btn" type="button" hidden title="Activer les alertes météo">🔔</button>
-        <button class="btn btn--ghost" id="lock-btn" type="button" hidden aria-pressed="false" title="Afficher la météo sur l'écran verrouillé">🔒</button>
-        <button class="btn btn--ghost" id="install-btn" type="button" hidden style="border-style: dashed;" title="Installer l'app">⬇ Installer</button>
-        <button class="btn btn--ghost" id="lang-btn" type="button" title="FR / EN">FR</button>
+        <button class="btn btn--ghost" id="notif-btn" type="button" hidden data-i18n-title="notif_on" title="Activer les alertes météo">🔔</button>
+        <button class="btn btn--ghost" id="lock-btn" type="button" hidden aria-pressed="false" data-i18n-title="lock_off" title="Afficher la météo sur l'écran verrouillé">🔒</button>
+        <button class="btn btn--ghost" id="install-btn" type="button" hidden style="border-style: dashed;" data-i18n-title="install" title="Installer l'app">⬇ Installer</button>
+        <button class="btn btn--ghost" id="lang-btn" type="button" data-i18n-title="lang_title" title="FR / EN">FR</button>
         <button class="btn btn--ghost" id="theme-btn" type="button" data-i18n-title="theme">🌙</button>
         <button class="btn btn--ghost" id="locate-btn" type="button" data-i18n-title="locate">
           <span class="ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
@@ -78,6 +78,23 @@
     <div class="error" id="error" hidden aria-live="assertive"></div>
     <div class="empty" id="empty" hidden data-i18n="empty">Aucune prévision disponible pour ce point.</div>
 
+    <!-- First launch: ask where, instead of silently showing Paris -->
+    <section class="card welcome" id="welcome" hidden aria-labelledby="welcome-title">
+      <h1 class="welcome__title" id="welcome-title" data-i18n="welcome_title">Où voulez-vous la météo ?</h1>
+      <p class="welcome__text" data-i18n="welcome_text">Certo utilise votre position uniquement pour calculer la météo de l'endroit où vous êtes.</p>
+      <button class="btn btn--primary welcome__locate" id="welcome-locate" type="button">
+        <span aria-hidden="true">📍</span> <span data-i18n="welcome_locate">Utiliser ma position</span>
+      </button>
+      <p class="welcome__msg" id="welcome-msg" role="status" hidden></p>
+      <div class="welcome__or" data-i18n="welcome_or">ou</div>
+      <form class="search welcome__search" id="welcome-form" autocomplete="off">
+        <label class="sr-only" for="welcome-input" data-i18n="welcome_city_ph">Choisir une ville…</label>
+        <input class="search__input" id="welcome-input" type="search"
+               data-i18n-ph="welcome_city_ph" placeholder="Choisir une ville…" />
+        <button class="btn btn--ghost" type="submit" data-i18n="welcome_city_go">Voir la météo</button>
+      </form>
+    </section>
+
     <!-- Main content -->
     <main id="content" hidden>
       <!-- Location: a poster, not a form -->
@@ -95,7 +112,7 @@
           <div class="hero__chips">
             <div class="verdict" id="verdict" aria-live="polite"></div>
             <div class="hero__badges">
-              <div class="hero__sure" id="sure-badge" hidden></div>
+              <button class="hero__sure" id="sure-badge" type="button" hidden aria-haspopup="dialog"></button>
               <div class="hero__stations" id="station-badge" hidden></div>
             </div>
           </div>
@@ -155,10 +172,10 @@
           <button class="btn btn--ghost" id="radar-play" type="button" data-i18n="play">▶ Lecture</button>
           <div class="map__timeline">
             <span class="map__time" id="radar-time">—</span>
-            <input type="range" id="radar-slider" min="0" max="1" value="1" disabled aria-label="Ligne de temps radar" />
+            <input type="range" id="radar-slider" min="0" max="1" value="1" disabled aria-label="Ligne de temps radar" data-i18n-aria="radar_slider" />
           </div>
           <label class="map__layers"><span class="sr-only" data-i18n="map_title">Radar & carte</span>
-            <select id="map-layer" aria-label="Couche carte">
+            <select id="map-layer" aria-label="Couche carte" data-i18n-aria="map_layer">
               <option value="radar" data-i18n="layer_radar">Radar pluie (live)</option>
               <option value="precip" data-i18n="layer_precip">Précipitation (modèle)</option>
               <option value="temp" data-i18n="layer_temp">Température</option>
@@ -170,7 +187,7 @@
             </select>
           </label>
           <label class="map__wind" data-i18n-title="wind_arrows_title">
-            <input type="checkbox" id="wind-toggle" checked aria-label="Flèches de vent" /> <span aria-hidden="true">💨</span>
+            <input type="checkbox" id="wind-toggle" checked aria-label="Flèches de vent" data-i18n-aria="wind_arrows_title" /> <span aria-hidden="true">💨</span>
           </label>
         </div>
         <div class="map-legend" id="map-legend" hidden></div>
@@ -181,6 +198,7 @@
         <div class="card__head">
           <h2 class="card__title" data-i18n="conf_title">Confiance de la prévision</h2>
           <span class="card__badge card__badge--muted" id="conf-overall"></span>
+          <button class="btn btn--ghost conf-info" id="conf-info" type="button" aria-haspopup="dialog" data-i18n-title="conf_more">?</button>
         </div>
         <p class="card__hint" data-i18n="conf_hint">Probabilité calibrée.</p>
         <div class="vars" id="vars"></div>
@@ -241,6 +259,16 @@
       <span id="footer-note"></span>
     </footer>
   </div>
+
+  <!-- What the confidence % means (opened from the hero badge and the card) -->
+  <dialog class="sheet" id="conf-sheet" aria-labelledby="conf-sheet-title">
+    <h2 class="sheet__title" id="conf-sheet-title" data-i18n="conf_sheet_title">La confiance, c'est quoi ?</h2>
+    <p data-i18n="conf_sheet_p1"></p>
+    <p data-i18n="conf_sheet_p2"></p>
+    <p data-i18n="conf_sheet_p3"></p>
+    <p data-i18n="conf_sheet_p4"></p>
+    <form method="dialog"><button class="btn btn--primary sheet__close" data-i18n="conf_sheet_close">Compris</button></form>
+  </dialog>
 
   <script src="/static/vendor/leaflet/leaflet.js" defer></script>
   <script src="/static/local-provider.js" defer></script>

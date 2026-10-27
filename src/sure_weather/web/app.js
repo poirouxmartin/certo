@@ -42,6 +42,7 @@ const VAR_ORDER = [
 
 let state = { lat: 48.8566, lon: 2.3522, hours: 24, name: "Paris", graph: "temperature_2m" };
 let reqToken = 0;
+let firstLaunch = false;
 
 /* ---- Deep links ----
    ?lat=&lon=&name= pre-selects a place (shared links, home-screen
@@ -78,17 +79,10 @@ const LAST_KEY = "sure-weather-last";
       }
     }
   } catch {}
-  // First visit with no history: try geolocation quietly (non-blocking).
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition((pos) => {
-      // Only auto-apply if the user never picked a place this session (still at default Paris and no URL).
-      if (state.name === "Paris" && !location.search) {
-        state.lat = pos.coords.latitude; state.lon = pos.coords.longitude; state.name = tr("my_position");
-        try { localStorage.setItem(LAST_KEY, JSON.stringify(state)); } catch {}
-        syncUrl(); loadForecast();
-      }
-    }, () => {}, { timeout: 8000, maximumAge: 600000 });
-  }
+  // First visit with no history: the boot shows the welcome card (my
+  // location / pick a city). A silent geolocation used to land users on
+  // Paris with no hint, and a refusal was swallowed (audit 27 Oct 2026).
+  firstLaunch = true;
 })();
 
 function saveLast() {
@@ -247,6 +241,9 @@ const $ = (s) => document.querySelector(s);
 const el = (id) => document.getElementById(id);
 const hide = (n) => (n.hidden = true);
 const show = (n) => (n.hidden = false);
+// Icon buttons: the tooltip doubles as the accessible name (title alone is
+// not read by TalkBack).
+const setTip = (n, text) => { n.title = text; n.setAttribute("aria-label", text); };
 
 function fmtTime(iso) {
   // Note: browser-local timezone. Consulting a far-away place shows YOUR
@@ -424,7 +421,7 @@ function weatherSvg(sky, size) {
 function confBadge(c, calibrated) {
 
   if (!calibrated || c === null || c === undefined) {
-    return `<span class="hour__conf hour__conf--na">${tr("conf_na")}</span>`;
+    return `<span class="hour__conf hour__conf--na" title="${tr("conf_na_tip")}">${tr("conf_na")}</span>`;
   }
   if (c >= 0.98) return `<span class="hour__conf hour__conf--hi">${LANG === "en" ? "sure 98%+" : "sûr 98%+"}</span>`;
   if (c >= 0.95) return `<span class="hour__conf hour__conf--hi">95%+</span>`;
@@ -462,7 +459,7 @@ async function geocode(query) {
   }
   // Open-Meteo knows cities; fall back to Nominatim (via our /geocode proxy)
   // for exact street addresses when the city search finds nothing.
-  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=fr&format=json`;
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=${LANG}&format=json`;
   try {
     const r = await fetch(url);
     const d = await r.json();
@@ -475,9 +472,9 @@ async function geocode(query) {
   }
   // Standalone (no backend proxy): query Nominatim directly (CORS-open).
   const gd = backendDown
-    ? await window.SureLocal.geocodeNominatim(query)
-    : await fetch(`/geocode?q=${encodeURIComponent(query)}&limit=1`).then((g) => {
-      if (!g.ok) throw new Error(`adresse introuvable`);
+    ? await window.SureLocal.geocodeNominatim(query, LANG)
+    : await fetch(`/geocode?q=${encodeURIComponent(query)}&limit=1&lang=${LANG}`).then((g) => {
+      if (!g.ok) throw new Error(tr("err_notfound"));
       return g.json();
     });
   if (!gd.results || !gd.results.length) throw new Error(tr("err_notfound"));
@@ -568,7 +565,7 @@ async function setupPush() {
   } catch { sub = null; }
   if (sub) {
     notifBtn.textContent = "🔔✓";
-    notifBtn.title = "Alertes activées";
+    setTip(notifBtn, tr("notif_done"));
     return;
   }
   // granted-but-no-subscription (cleaned/lost) must still offer resubscribe.
@@ -588,10 +585,10 @@ if (notifBtn) {
         body: JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh: btoa(String.fromCharCode(...new Uint8Array(sub.getKey("p256dh")))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""), auth: btoa(String.fromCharCode(...new Uint8Array(sub.getKey("auth")))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") }, lat: state.lat, lon: state.lon }),
       });
       notifBtn.textContent = "🔔✓";
-      notifBtn.title = "Alertes activées";
+      setTip(notifBtn, tr("notif_done"));
     } catch (e) {
       notifBtn.hidden = false;
-      notifBtn.title = `Échec d'abonnement : ${e?.message || e}`;
+      setTip(notifBtn, tr("notif_fail", { e: e?.message || e }));
     }
   });
   setupPush().catch(() => { if (notifBtn) notifBtn.hidden = false; });
@@ -703,7 +700,7 @@ function showLockState(st) {
   const on = !!(st && st.enabled);
   lockBtn.textContent = on ? "🔒✓" : "🔒";
   lockBtn.setAttribute("aria-pressed", String(on));
-  lockBtn.title = tr(on ? "lock_on" : "lock_off");
+  setTip(lockBtn, tr(on ? "lock_on" : "lock_off"));
   lockBtn.hidden = false;
 }
 if (LockScreen && lockBtn) {
@@ -785,7 +782,9 @@ function isBackendDead(e) {
   if (e instanceof TypeError) return true; // network failure
   if (e.name === "AbortError") return false; // slow backend, not dead
   const msg = String(e.message || "");
-  return /Failed to fetch|NetworkError|Load failed|Unexpected token|is not valid JSON|JSON/i.test(msg);
+  // "API 404": /weather always exists on a real backend; a static host
+  // answering 404 raced the /health probe and showed a raw "API 404".
+  return /Failed to fetch|NetworkError|Load failed|Unexpected token|is not valid JSON|JSON|^API 404$/i.test(msg);
 }
 
 async function probeBackend() {
@@ -814,6 +813,7 @@ async function loadForecast() {
   const token = ++reqToken;
   const key = cacheKey();
   const cached = dataCache.get(key) || loadPersistedForecast(key);
+  hide(el("welcome")); // any path to a place (search, locate, favorite) ends the welcome
   showSkeletons(state.name);
   hide(el("loading"));
   if (cached) render(cached, state.hours); // instant paint, then refresh
@@ -898,7 +898,7 @@ async function loadForecast() {
       }
       hide(el("loading"));
       if (!cached) hide(el("content"));
-      showError(timedOut ? tr("err_slow") : e.message);
+      showError(errorText(e));
       return;
     }
   }
@@ -932,7 +932,7 @@ async function loadForecastLocal(token, key, cached) {
     if (token !== reqToken) return;
     hide(el("loading"));
     if (!cached) hide(el("content"));
-    showError(e.name === "AbortError" ? tr("err_slow") : e.message);
+    showError(errorText(e));
   }
 }
 
@@ -946,11 +946,45 @@ function initLocalModeUI() {
   if (mapLayer && map) applyMapLayer();
 }
 
+/* Raw fetch errors ("Failed to fetch", "API 502") reached the user in
+   English whatever the UI language: map them to translated messages. */
+function errorText(e) {
+  if (!e) return tr("err_generic");
+  if (e.name === "AbortError") return tr("err_slow");
+  const msg = String(e.message || e);
+  // Already user-facing (place not found, geolocation refused).
+  if (Object.values(I18N[LANG]).includes(msg)) return msg;
+  if (e.offline || !navigator.onLine || e instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+    return tr("err_offline");
+  }
+  const status = msg.match(/\b([45]\d\d)\b/);
+  return status ? tr("err_server", { s: status[1] }) : tr("err_generic");
+}
+
+/* "14:05" today, "mon. 14:05" otherwise: a cached forecast can be days old. */
+function fmtStamp(iso) {
+  const d = new Date(iso);
+  const loc = LANG === "en" ? "en-GB" : "fr-FR";
+  const t = d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" });
+  return d.toDateString() === new Date().toDateString()
+    ? t : `${d.toLocaleDateString(loc, { weekday: "short", day: "numeric" })} ${t}`;
+}
+
+function fmtAge(ms) {
+  const min = Math.round(ms / 60000);
+  if (min < 60) return `${min} min`;
+  const h = Math.round(min / 60);
+  return h < 48 ? `${h} h` : `${Math.round(h / 24)} ${LANG === "en" ? "d" : "j"}`;
+}
+
 function showError(message) {
   const box = el("error");
   box.innerHTML = "";
   const span = document.createElement("span");
-  span.textContent = message + " ";
+  // A cached forecast stays on screen: say how old it is.
+  const stale = !el("content").hidden && currentData?.generated_at
+    ? ` ${tr("err_cached", { t: fmtStamp(currentData.generated_at) })}` : "";
+  span.textContent = message + stale + " ";
   const btn = document.createElement("button");
   btn.className = "btn btn--ghost error__retry";
   btn.type = "button";
@@ -1031,10 +1065,16 @@ function render(data, hours = state.hours) {
     }).catch(() => {});
   } catch { /* no native bridge (browser/PWA) */ }
   // When the fusion ran: honest staleness indicator next to the place name.
+  // A copy restored from cache can be up to 3 days old: past 1 h, say so in
+  // the stale style instead of a bare clock time.
   try {
-    el("computed-at").textContent = data.generated_at
-      ? tr("computed_at", { t: new Date(data.generated_at).toLocaleTimeString(LANG === "en" ? "en-GB" : "fr-FR", { hour: "2-digit", minute: "2-digit" }) })
-      : "";
+    const ca = el("computed-at");
+    const age = data.generated_at ? Date.now() - new Date(data.generated_at).getTime() : 0;
+    const stale = age > 3600e3;
+    ca.classList.toggle("hero__computed--stale", stale);
+    ca.textContent = !data.generated_at ? ""
+      : stale ? tr("computed_stale", { t: fmtStamp(data.generated_at), a: fmtAge(age) })
+      : tr("computed_at", { t: fmtStamp(data.generated_at) });
   } catch { el("computed-at").textContent = ""; }
   // Union of contributors across the whole window: the first item alone can
   // undercount (its group may lack station reports).
@@ -1221,8 +1261,10 @@ function renderSureBadge(summary) {
   }
   badge.hidden = false;
   badge.className = `sure-badge ${cls}`;
-  badge.innerHTML = `<span class="sure-badge__ic" aria-hidden="true">${icon}</span>${avg}%`;
-  badge.title = tr("sure_tip", { s: share, a: avg, h });
+  // Labelled: a bare "✓ 91 %" next to the rain chance read as another
+  // probability. Tapping it opens the explanation sheet.
+  badge.innerHTML = `<span class="sure-badge__ic" aria-hidden="true">${icon}</span>${tr("conf_label")} ${avg}%`;
+  setTip(badge, tr("sure_tip", { s: share, a: avg, h }));
 }
 
 /* ---- Visual verdict: the 24h answer without reading ---- */
@@ -1251,7 +1293,7 @@ function renderVerdict(times, byTime) {
     const first = rainHours[0];
     const peak = Math.max(...rainHours.map((h) => h.row.precipitation_probability?.value ?? 0));
     pills.push(
-      `<span class="vpill vpill--rain"><span class="vpill__ic" aria-hidden="true">☔</span>${tr(first.t === times[0] ? "v_rain_now" : "v_rain", { h: fmtTime(first.t) })}${peak >= 70 ? ` · ${Math.round(peak)}%` : ""}</span>`
+      `<span class="vpill vpill--rain"><span class="vpill__ic" aria-hidden="true">☔</span>${tr(first.t === times[0] ? "v_rain_now" : "v_rain", { h: fmtTime(first.t) })}${peak >= 70 ? ` · ${tr("v_rain_prob", { p: Math.round(peak) })}` : ""}</span>`
     );
   }
   // Precise rain timing (15-min model consensus, standalone payload).
@@ -1712,7 +1754,7 @@ $("#search-form").addEventListener("submit", async (e) => {
     await loadForecast();
   } catch (err) {
     hide(el("loading"));
-    showError(err.message);
+    showError(errorText(err));
   }
 });
 
@@ -1725,7 +1767,7 @@ $("#locate-btn").addEventListener("click", async () => {
     await loadForecast();
   } catch (err) {
     hide(el("loading"));
-    showError(err.message);
+    showError(errorText(err));
   }
 });
 
@@ -2534,6 +2576,62 @@ $("#radar-slider").addEventListener("input", (e) => {
   showRadarFrame(parseInt(e.target.value, 10));
 });
 
+/* ---- First launch: my location or a city ---- */
+function goTo(loc) {
+  state.lat = loc.lat;
+  state.lon = loc.lon;
+  state.name = loc.name;
+  saveLast();
+  return loadForecast();
+}
+
+function welcomeMsg(text) {
+  const m = el("welcome-msg");
+  m.textContent = text;
+  m.hidden = !text;
+}
+
+async function welcomeLocate() {
+  const btn = el("welcome-locate");
+  btn.disabled = true;
+  welcomeMsg(tr("welcome_locating"));
+  try {
+    await goTo(await locateMe());
+  } catch {
+    // Refused or no fix: say it, and steer to the city field.
+    welcomeMsg(tr("geoloc_err_city"));
+    el("welcome-input").focus();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+el("welcome-locate").addEventListener("click", welcomeLocate);
+el("welcome-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const q = el("welcome-input").value.trim();
+  if (!q) return;
+  welcomeMsg(tr("loading_geocode"));
+  try {
+    await goTo(await geocode(q));
+  } catch (err) {
+    welcomeMsg(errorText(err));
+  }
+});
+
+/* ---- Confidence sheet ---- */
+function openConfSheet() {
+  const d = el("conf-sheet");
+  if (d.showModal) d.showModal();
+  else d.setAttribute("open", "");
+}
+el("sure-badge").addEventListener("click", openConfSheet);
+el("conf-info").addEventListener("click", openConfSheet);
+// Tap on the backdrop closes it (the dialog box itself fills its rect).
+el("conf-sheet").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.close();
+});
+
 /* Boot */
 // Web fonts load as media="print" (non-blocking); switch them on here since
 // the CSP forbids an inline onload handler.
@@ -2549,19 +2647,14 @@ document.querySelectorAll("link[data-async-css]").forEach((l) => { l.media = "al
 // Standalone (?local=1 / APK): skip the backend probe, go on-device now.
 if (forceLocal) initLocalModeUI();
 else probeBackend().finally(() => { if (backendDown) initLocalModeUI(); });
-loadForecast();
+if (firstLaunch) show(el("welcome"));
+else loadForecast();
 renderFavorites();
 checkAppUpdate();
 // The map and radar initialize inside render(), once `#content` is visible:
 // Leaflet needs a non-zero container to fetch tiles (no gray map).
 // Home-screen shortcut "?geo=1": ask for geolocation once on boot.
 if (new URLSearchParams(location.search).get("geo") === "1") {
-  locateMe()
-    .then((loc) => {
-      state.lat = loc.lat;
-      state.lon = loc.lon;
-      state.name = loc.name;
-      loadForecast();
-    })
-    .catch(() => {});
+  if (firstLaunch) welcomeLocate();
+  else locateMe().then(goTo).catch((err) => showError(errorText(err)));
 }

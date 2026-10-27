@@ -127,6 +127,36 @@ const I18N = {
     layer_humidity: "Humidité",
     layer_cloud: "Nébulosité",
     layer_pressure: "Pression",
+    welcome_title: "Où voulez-vous la météo ?",
+    welcome_text: "Certo utilise votre position uniquement pour calculer la météo de l'endroit où vous êtes. Vous pouvez aussi choisir une ville.",
+    welcome_locate: "Utiliser ma position",
+    welcome_or: "ou",
+    welcome_city_ph: "Choisir une ville…",
+    welcome_city_go: "Voir la météo",
+    welcome_locating: "Recherche de votre position…",
+    geoloc_err_city: "Position indisponible (refusée ou introuvable). Choisissez une ville.",
+    conf_label: "confiance",
+    conf_more: "Comprendre la confiance",
+    conf_sheet_title: "La confiance, c'est quoi ?",
+    conf_sheet_p1: "C'est la probabilité que la valeur réelle reste proche de la prévision, dans une tolérance par variable (par exemple ±2 °C pour la température).",
+    conf_sheet_p2: "Elle est calibrée : Certo compare ses prévisions passées à ce qui s'est vraiment produit (stations météo, puis 3 mois de réanalyse). Une confiance de 90 % tombe juste environ 9 fois sur 10.",
+    conf_sheet_p3: "À ne pas confondre avec le risque de pluie : « Pluie dès 05:00 · risque 85 % » dit s'il va pleuvoir, la confiance dit à quel point la prévision est fiable.",
+    conf_sheet_p4: "« non cal. » (non calibrée) : pas encore assez d'historique pour vérifier cette variable ici. Le pourcentage n'indique alors que l'accord entre les modèles, moins fiable.",
+    conf_sheet_close: "Compris",
+    conf_na_tip: "Non calibrée : pas encore assez d'historique ici, le pourcentage n'indique que l'accord entre les modèles.",
+    v_rain_prob: "risque {p} %",
+    err_offline: "Pas de connexion.",
+    err_server: "Le service météo ne répond pas (erreur {s}).",
+    err_generic: "La prévision n'a pas pu être chargée.",
+    err_cached: "Prévision de {t} affichée.",
+    computed_stale: "prévision de {t}, il y a {a}",
+    notif_on: "Activer les alertes météo",
+    notif_done: "Alertes activées",
+    notif_fail: "Échec d'abonnement : {e}",
+    install: "Installer l'app",
+    lang_title: "Langue : français / anglais",
+    radar_slider: "Ligne de temps radar",
+    map_layer: "Couche de carte",
   },
   en: {
     tagline: "sure weather",
@@ -255,12 +285,44 @@ const I18N = {
     layer_humidity: "Humidity",
     layer_cloud: "Cloud",
     layer_pressure: "Pressure",
+    welcome_title: "Where do you want the weather?",
+    welcome_text: "Certo uses your location only to compute the weather where you are. You can also pick a city.",
+    welcome_locate: "Use my location",
+    welcome_or: "or",
+    welcome_city_ph: "Pick a city…",
+    welcome_city_go: "Show weather",
+    welcome_locating: "Finding your location…",
+    geoloc_err_city: "Location unavailable (denied or not found). Pick a city.",
+    conf_label: "confidence",
+    conf_more: "About confidence",
+    conf_sheet_title: "What is confidence?",
+    conf_sheet_p1: "It is the probability that the real value stays close to the forecast, within a per-variable tolerance (e.g. ±2 °C for temperature).",
+    conf_sheet_p2: "It is calibrated: Certo checks its past forecasts against what really happened (weather stations, then 3 months of reanalysis). A 90% confidence is right about 9 times out of 10.",
+    conf_sheet_p3: "Not to be confused with the chance of rain: \"Rain from 05:00 · 85% chance\" says whether it will rain, confidence says how reliable the forecast is.",
+    conf_sheet_p4: "\"uncal.\" (uncalibrated): not enough history yet to check this variable here. The percentage then only reflects agreement between models, which is less reliable.",
+    conf_sheet_close: "Got it",
+    conf_na_tip: "Uncalibrated: not enough history here yet, the percentage only reflects agreement between models.",
+    v_rain_prob: "{p}% chance",
+    err_offline: "No connection.",
+    err_server: "The weather service is not responding (error {s}).",
+    err_generic: "The forecast could not be loaded.",
+    err_cached: "Showing the forecast from {t}.",
+    computed_stale: "forecast from {t}, {a} ago",
+    notif_on: "Turn on weather alerts",
+    notif_done: "Alerts on",
+    notif_fail: "Subscription failed: {e}",
+    install: "Install the app",
+    lang_title: "Language: French / English",
+    radar_slider: "Radar timeline",
+    map_layer: "Map layer",
   },
 };
 
+// Only FR and EN exist: any other browser language reads English, which far
+// more visitors understand than French (es/de/it users got French before).
 let LANG = localStorage.getItem("sure-weather-lang")
-  || (navigator.language || "fr").slice(0, 2);
-if (!I18N[LANG]) LANG = "fr";
+  || (navigator.language || "en").slice(0, 2);
+if (!I18N[LANG]) LANG = "en";
 
 function tr(key, vars) {
   let s = I18N[LANG][key] ?? I18N.fr[key] ?? key;
@@ -279,12 +341,17 @@ function applyI18n() {
   });
   document.querySelectorAll("[data-i18n-title]").forEach((el) => {
     el.title = tr(el.dataset.i18nTitle);
+    // Icon-only buttons: screen readers ignore title, they need a name.
+    el.setAttribute("aria-label", el.title);
+  });
+  document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
+    el.setAttribute("aria-label", tr(el.dataset.i18nAria));
   });
   document.documentElement.lang = LANG;
 }
 
 function setLang(lang) {
-  LANG = I18N[lang] ? lang : "fr";
+  LANG = I18N[lang] ? lang : "en";
   localStorage.setItem("sure-weather-lang", LANG);
   applyI18n();
   // Full re-render (not just the timeline): hours/table/verdict/badges/

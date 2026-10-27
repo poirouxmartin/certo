@@ -168,7 +168,7 @@ window.SureLocal = (() => {
       } catch (e) {
         // Offline / DNS / CORS: no point retrying the same burst.
         if (e instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(e.message || "")) {
-          throw new Error("pas de connexion Internet — vérifie le réseau puis réessaie");
+          throw Object.assign(new Error("pas de connexion Internet — vérifie le réseau puis réessaie"), { offline: true });
         }
         lastErr = e;
         if (attempt < 3) await sleep(attempt * 2000);
@@ -359,9 +359,9 @@ window.SureLocal = (() => {
     }
   }
 
-  async function geocodeNominatim(q) {
+  async function geocodeNominatim(q, lang = "fr") {
     const r = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=0&accept-language=fr&extratags=0`,
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=0&accept-language=${encodeURIComponent(lang)}&extratags=0`,
       { headers: { Accept: "application/json" } }
     );
     if (!r.ok) throw new Error(`geocode ${r.status}`);
