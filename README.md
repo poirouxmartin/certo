@@ -8,7 +8,7 @@ Multi-source weather fusion with per-provider confidence, targeting hyperlocal n
 
 Project page: [martinpoiroux.com/projets/certo/](https://martinpoiroux.com/projets/certo/)
 
-**Build the APK:** `powershell -ExecutionPolicy Bypass -File app-android\build-apk.ps1` writes `app-android/dist/certo-vX.Y.Z.apk`. Releases ship `certo-vX.Y.Z.apk` plus a `sure-weather-vX.Y.Z.apk` copy for clients up to v1.5.2.
+**Build the APK:** `powershell -ExecutionPolicy Bypass -File app-android\build-apk.ps1` writes `app-android/dist/certo-vX.Y.Z.apk`. Releases ship a single `certo-vX.Y.Z.apk` (the `sure-weather-vX.Y.Z.apk` copy for clients up to v1.5.2 stopped after v1.6.1).
 The version lives in `VERSION`, `app-android/android/app/build.gradle` (versionCode/versionName) and `APP_VERSION` in `src/sure_weather/web/app.js`; in-app updates trigger when `VERSION` on master is newer.
 
 ## Concept

@@ -682,7 +682,7 @@ let backendDown = forceLocal;
 /* App version bundled here — bump on every GitHub release so the in-app
    updater can offer it. ALSO bump VERSION (repo root), versionCode and
    versionName: the release asset must be named certo-vX.Y.Z.apk.
-   Releases also carry a sure-weather-vX.Y.Z.apk copy: v1.5.2 and older look for that name under the old repo path, which GitHub redirects since the repo rename (17 Oct 2026).
+   Releases up to v1.6.1 also carried a sure-weather-vX.Y.Z.apk copy for v1.5.2 and older (they look for that name); later releases ship certo-vX.Y.Z.apk only.
    Checked against a raw VERSION file (no rate-limit, CORS-open) — the
    api.github.com endpoint is unusable (60 req/h/IP, shared mobile NATs). */
 const APP_VERSION = "1.6.1";
