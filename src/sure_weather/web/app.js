@@ -685,7 +685,7 @@ let backendDown = forceLocal;
    Releases also carry a sure-weather-vX.Y.Z.apk copy: v1.5.2 and older look for that name under the old repo path, which GitHub redirects since the repo rename (17 Oct 2026).
    Checked against a raw VERSION file (no rate-limit, CORS-open) — the
    api.github.com endpoint is unusable (60 req/h/IP, shared mobile NATs). */
-const APP_VERSION = "1.6.0";
+const APP_VERSION = "1.6.1";
 const APP_REPO = "poirouxmartin/certo";
 // Native-only bridge to AppUpdaterPlugin.java (registered in MainActivity).
 // Undefined in the browser/PWA, where the banner is a plain link to the APK.
