@@ -184,6 +184,7 @@ def geocode(
     request: Request,
     q: str = Query(..., min_length=2, max_length=200),
     limit: int = Query(5, ge=1, le=10),
+    lang: str = Query("fr", pattern="^(fr|en)$"),
 ) -> dict:
     """Forward an address/city query to Nominatim (OpenStreetMap).
 
@@ -196,7 +197,7 @@ def geocode(
     """
     _rate_limit_by_ip(request, "geocode", limit=30)
     # Small in-process cache: repeated district/street searches reuse upstream.
-    cache_key = (q.strip().lower(), limit)
+    cache_key = (q.strip().lower(), limit, lang)
     now = time.time()
     hit = _GEOCODE_CACHE.get(cache_key)
     if hit and now - hit[0] < 3600:
@@ -209,7 +210,8 @@ def geocode(
                 "format": "json",
                 "limit": limit,
                 "addressdetails": 0,
-                "accept-language": "fr",
+                # Place names follow the UI language (the app sends fr or en).
+                "accept-language": lang,
                 "extratags": 0,
             },
             headers={"User-Agent": "sure-weather/0.1 (weather forecast app)"},
