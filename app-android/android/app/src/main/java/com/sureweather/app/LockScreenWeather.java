@@ -8,17 +8,20 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Typeface;
 import android.os.Build;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.graphics.drawable.IconCompat;
 
 import org.json.JSONObject;
 
 import java.util.List;
 
 /**
- * Weather on the lock screen, as a silent ongoing notification.
+ * Weather on the lock screen, as a silent ongoing notification; its small
+ * icon is the temperature, so the status bar shows it too.
  *
  * Phones have no lock-screen widgets: Android 5 removed them, and their
  * Android 15+ return (widgetCategory "keyguard") is limited to the tablet
@@ -121,6 +124,10 @@ final class LockScreenWeather {
                     .setCategory(NotificationCompat.CATEGORY_STATUS)
                     .setPriority(NotificationCompat.PRIORITY_DEFAULT) // pre-26 twin of the channel importance
                     .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
+            // The temperature itself in the status bar, next to the clock, as
+            // most weather apps do (Martin, Nov 2026). Bitmap small icons need
+            // API 23; older phones keep the Certo logo.
+            if (Build.VERSION.SDK_INT >= 23) b.setSmallIcon(IconCompat.createWithBitmap(tempIcon(temp)));
             // "when" = time of the DATA: the shade shows its age ("il y a 40 min").
             if (fetchedAt > 0) b.setWhen(fetchedAt);
             NotificationManagerCompat.from(ctx).notify(NOTIF_ID, b.build());
@@ -143,6 +150,30 @@ final class LockScreenWeather {
             if (!r.isEmpty()) sb.append(' ').append(r);
         }
         return sb.toString();
+    }
+
+    /** "14°" drawn white on transparent for the status bar (the system keeps
+     * only the alpha and tints it). As large as the 96 px square allows; the
+     * degree sign is dropped for 3 characters ("-12") to keep digits readable. */
+    static Bitmap tempIcon(String temp) {
+        final int S = 96;
+        String digits = temp.replace("°", "").trim();
+        String s = digits.length() >= 3 ? digits : digits + "°";
+        Bitmap bm = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(bm);
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(0xFFFFFFFF);
+        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+        p.setTextAlign(Paint.Align.CENTER);
+        float size = 80f;
+        p.setTextSize(size);
+        while (p.measureText(s) > S - 2 && size > 24f) {
+            size -= 2f;
+            p.setTextSize(size);
+        }
+        Paint.FontMetrics fm = p.getFontMetrics();
+        c.drawText(s, S / 2f, S / 2f - (fm.ascent + fm.descent) / 2f, p);
+        return bm;
     }
 
     /** Condition emoji as the large icon (colour emoji font, 128 px). */
