@@ -601,7 +601,9 @@ async def _security_headers(request, call_next):
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https://tile.openstreetmap.org https://*.rainviewer.com; "
-        "connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com;"
+        # photon.komoot.io: typo-tolerant place search (app.js searchPlaces).
+        "connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com "
+        "https://photon.komoot.io;"
     )
     response.headers.setdefault("Content-Security-Policy", csp)
     if request.url.path == "/sw.js":

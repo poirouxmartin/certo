@@ -123,7 +123,7 @@
       <!-- Hourly meteogram -->
       <section class="card timeline">
         <div class="card__head">
-          <h2 class="card__title" data-i18n="mg_title">Prochaines heures</h2>
+          <h2 class="card__title"><span class="tab-ic" aria-hidden="true">🕒</span><span data-i18n="mg_title">Prochaines heures</span></h2>
           <div class="seg seg--inline" id="range-seg">
             <button class="seg__btn" data-hours="1">1 h</button>
             <button class="seg__btn" data-hours="3">3 h</button>
@@ -134,12 +134,12 @@
           </div>
         </div>
         <div class="graph-tabs" id="graph-tabs">
-          <button class="graph-tab graph-tab--active" data-graph="temperature_2m" data-i18n="gt_temp">Temp</button>
-          <button class="graph-tab" data-graph="precipitation" data-i18n="gt_rain">Pluie</button>
-          <button class="graph-tab" data-graph="wind_speed_10m" data-i18n="gt_wind">Vent</button>
-          <button class="graph-tab" data-graph="pressure_msl" data-i18n="gt_press">Pression</button>
-          <button class="graph-tab" data-graph="relative_humidity_2m" data-i18n="gt_hum">Humidité</button>
-          <button class="graph-tab" data-graph="uv_index" data-i18n="gt_uv">UV</button>
+          <button class="graph-tab graph-tab--active" data-graph="temperature_2m"><span class="tab-ic" aria-hidden="true">🌡️</span><span data-i18n="gt_temp">Temp</span></button>
+          <button class="graph-tab" data-graph="precipitation"><span class="tab-ic" aria-hidden="true">💧</span><span data-i18n="gt_rain">Pluie</span></button>
+          <button class="graph-tab" data-graph="wind_speed_10m"><span class="tab-ic" aria-hidden="true">💨</span><span data-i18n="gt_wind">Vent</span></button>
+          <button class="graph-tab" data-graph="pressure_msl"><span class="tab-ic" aria-hidden="true">⏲️</span><span data-i18n="gt_press">Pression</span></button>
+          <button class="graph-tab" data-graph="relative_humidity_2m"><span class="tab-ic" aria-hidden="true">💦</span><span data-i18n="gt_hum">Humidité</span></button>
+          <button class="graph-tab" data-graph="uv_index"><span class="tab-ic" aria-hidden="true">☀️</span><span data-i18n="gt_uv">UV</span></button>
         </div>
         <div class="timeline__chart" id="timeline-chart"></div>
       </section>
@@ -153,7 +153,7 @@
       <!-- Hourly detail cards: collapsible, the meteogram is the primary view -->
       <details class="card hourscard" id="hourscard">
         <summary>
-          <span class="card__title" data-i18n="hours_title">Détail heure par heure</span>
+          <span class="tab-ic" aria-hidden="true">📋</span><span class="card__title" data-i18n="hours_title">Détail heure par heure</span>
           <span class="card__badge card__badge--muted" id="hours-count"></span>
           <span class="chevron" aria-hidden="true">▾</span>
         </summary>
@@ -163,7 +163,7 @@
       <!-- Radar & map -->
       <section class="card mapcard">
         <div class="card__head">
-          <h2 class="card__title" data-i18n="map_title">Radar & carte</h2>
+          <h2 class="card__title"><span class="tab-ic" aria-hidden="true">🗺️</span><span data-i18n="map_title">Radar & carte</span></h2>
           <span class="card__badge card__badge--muted" id="radar-status"></span>
         </div>
         <p class="card__hint" data-i18n="map_hint">Précipitations en temps réel autour du point.</p>
@@ -196,7 +196,7 @@
       <!-- Confidence -->
       <section class="card">
         <div class="card__head">
-          <h2 class="card__title" data-i18n="conf_title">Confiance de la prévision</h2>
+          <h2 class="card__title"><span class="tab-ic" aria-hidden="true">🎯</span><span data-i18n="conf_title">Confiance de la prévision</span></h2>
           <span class="card__badge card__badge--muted" id="conf-overall"></span>
           <button class="btn btn--ghost conf-info" id="conf-info" type="button" aria-haspopup="dialog" data-i18n-title="conf_more">?</button>
         </div>
@@ -207,7 +207,7 @@
       <!-- Sources détaillées : comment est calculée la température -->
       <section class="card" id="sources-card">
         <div class="card__head">
-          <h2 class="card__title" data-i18n="sources_title">Détail des sources & calcul</h2>
+          <h2 class="card__title"><span class="tab-ic" aria-hidden="true">🔬</span><span data-i18n="sources_title">Détail des sources & calcul</span></h2>
           <span class="card__badge" id="sources-badge"></span>
         </div>
         <p class="card__hint" data-i18n="sources_hint">Températures brutes par source à l'échéance la plus proche, biais corrigé, et moyenne pondérée calibrée (= notre prévision).</p>
@@ -232,7 +232,7 @@
 
       <!-- Hourly table -->
       <section class="card">
-        <h2 class="card__title"><span data-i18n="table_title">Détail horaire</span> <span class="card__badge card__badge--muted" data-i18n="tz_note">heure locale</span></h2>
+        <h2 class="card__title"><span class="tab-ic" aria-hidden="true">📊</span><span data-i18n="table_title">Détail horaire</span> <span class="card__badge card__badge--muted" data-i18n="tz_note">heure locale</span></h2>
         <div class="tablewrap">
           <table class="table">
             <thead>

@@ -469,8 +469,12 @@ button.sure-badge { border: 0; font-family: inherit; cursor: pointer; }
   white-space: nowrap;
   cursor: pointer; transition: background .15s, color .15s;
 }
-.seg__btn:hover { color: var(--ink); }
-.seg__btn--active { background: var(--pill-bg); color: var(--pill-ink); }
+/* Hover only where a pointer hovers: on touch, :hover sticks to the tapped
+   button and (same specificity, later rule) painted --ink on the light
+   active pill in dark mode, light on light (Martin, Nov 2026). The active
+   rule also outranks it now. */
+@media (hover: hover) { .seg__btn:hover { color: var(--ink); } }
+.seg__btn.seg__btn--active { background: var(--pill-bg); color: var(--pill-ink); }
 
 /* ---- Cards ---- */
 .card {
@@ -910,3 +914,25 @@ html[data-theme="dark"] .sk::after {
 .radar-legend__ticks { position: relative; height: 14px; margin-top: 2px; }
 .radar-legend__ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .radar-legend__ticks span:last-child { transform: translateX(-70%); }
+
+/* ---- Place suggestions under the search fields ---- */
+.search--suggest { position: relative; }
+.suggest {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 1000;
+  margin: 0; padding: 4px; list-style: none;
+  background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  box-shadow: var(--shadow-lg); max-height: 60vh; overflow-y: auto; text-align: left;
+}
+.suggest__item {
+  display: flex; align-items: baseline; gap: 6px; min-width: 0;
+  padding: 10px; border-radius: 8px; cursor: pointer; color: var(--ink); font-size: 15px;
+}
+.suggest__item:hover, .suggest__item--active { background: var(--accent-soft); }
+.suggest__name { font-weight: 600; flex: none; }
+.suggest__detail { color: var(--ink-faint); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suggest__empty { padding: 10px; color: var(--ink-faint); font-size: 14px; }
+/* In-app name prompt (favorites) */
+.ask .sheet__title { text-align: left; }
+.ask__input { width: 100%; height: 42px; font-size: 16px; margin: 4px 0 14px; }
+.ask__actions { display: flex; justify-content: flex-end; gap: 8px; }
+.tab-ic { margin-right: 4px; }

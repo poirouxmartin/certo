@@ -119,38 +119,34 @@ function isFavorite(lat, lon) {
   return loadFavorites().some((f) => Math.abs(f.lat - lat) < 1e-4 && Math.abs(f.lon - lon) < 1e-4);
 }
 
-function toggleFavorite() {
-  let list = loadFavorites();
-  const idx = list.findIndex((f) => Math.abs(f.lat - state.lat) < 1e-4 && Math.abs(f.lon - state.lon) < 1e-4);
+async function toggleFavorite() {
+  const { lat, lon } = state;
+  const list = loadFavorites();
+  const idx = list.findIndex((f) => Math.abs(f.lat - lat) < 1e-4 && Math.abs(f.lon - lon) < 1e-4);
   if (idx >= 0) {
     list.splice(idx, 1);
+    saveFavorites(list);
   } else {
-    // Name it now so the place stays reusable after you leave: the prompt
-    // defaults to the current display name (city, address, or coords).
-    let name = state.name;
-    try {
-      const answer = prompt(tr("fav_name"), state.name);
-      if (answer === null) return; // cancelled: don't add
-      name = (answer.trim() || state.name).slice(0, 60);
-    } catch { /* prompt blocked: keep display name */ }
-    list.unshift({ lat: state.lat, lon: state.lon, name });
+    // Named now so the place stays reusable after you leave. The city name
+    // is offered ("Lyon", not "Lyon, France"): OK keeps it, no retyping.
+    const city = placeLabel(state.name);
+    const answer = await askText(tr("fav_name"), city, tr("fav_save"));
+    if (answer === null) return; // cancelled: don't add
+    const fresh = loadFavorites(); // re-read: the dialog was open
+    fresh.unshift({ lat, lon, name: (answer || city).slice(0, 60) });
+    saveFavorites(fresh);
   }
-  saveFavorites(list);
   renderFavorites();
 }
 
-function renameFavorite(i) {
+async function renameFavorite(i) {
   const list = loadFavorites();
   if (!list[i]) return;
-  try {
-    const answer = prompt(tr("fav_rename"), list[i].name || "");
-    if (answer === null) return;
-    const name = answer.trim().slice(0, 60);
-    if (!name) return;
-    list[i].name = name;
-    saveFavorites(list);
-    renderFavorites();
-  } catch { /* prompt blocked */ }
+  const answer = await askText(tr("fav_rename"), list[i].name || "", tr("fav_save"));
+  if (!answer) return;
+  list[i].name = answer.slice(0, 60);
+  saveFavorites(list);
+  renderFavorites();
 }
 
 function deleteFavorite(i) {
@@ -450,36 +446,239 @@ function confColor(c) {
 
 /* ---- Geo ---- */
 
-async function geocode(query) {
-  if (query.includes(",")) {
-    const [lat, lon] = query.split(",").map((s) => parseFloat(s.trim()));
-    if (Number.isFinite(lat) && Number.isFinite(lon)) {
-      return { lat, lon, name: `${lat.toFixed(4)}, ${lon.toFixed(4)}` };
-    }
-  }
-  // Open-Meteo knows cities; fall back to Nominatim (via our /geocode proxy)
-  // for exact street addresses when the city search finds nothing.
-  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=${LANG}&format=json`;
+function parseLatLon(query) {
+  if (!query.includes(",")) return null;
+  const [lat, lon] = query.split(",").map((s) => parseFloat(s.trim()));
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  return { lat, lon, name: `${lat.toFixed(4)}, ${lon.toFixed(4)}` };
+}
+
+/* Up to `limit` places for a query, best first: {lat, lon, name, detail}.
+   Open-Meteo knows cities and matches typos from 3 letters on ("Marseile"
+   finds Marseille); Nominatim (our /geocode proxy, or direct when there is
+   no backend) takes over for street addresses it does not know. */
+async function searchPlaces(query, limit = 6, signal) {
+  const ll = parseLatLon(query);
+  if (ll) return [ll];
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=${limit}&language=${LANG}&format=json`;
   try {
-    const r = await fetch(url);
-    const d = await r.json();
+    const d = await (await fetch(url, { signal })).json();
     if (d.results && d.results.length) {
-      const res = d.results[0];
-      return { lat: res.latitude, lon: res.longitude, name: res.name + (res.country ? `, ${res.country}` : "") };
+      return d.results.map((res) => ({
+        lat: res.latitude,
+        lon: res.longitude,
+        name: res.name + (res.country ? `, ${res.country}` : ""),
+        detail: [res.admin1, res.country].filter((s) => s && s !== res.name).join(", "),
+      }));
     }
-  } catch {
+  } catch (err) {
+    if (err.name === "AbortError") throw err;
+    /* fall through to the fuzzy search */
+  }
+  // Open-Meteo only matches prefixes: "Marseile" finds nothing (checked Nov
+  // 2026). Photon (komoot, keyless, CORS-open) is typo-tolerant and finds
+  // Marseille; limited to places so streets do not crowd the list. Skipped
+  // for queries with a number (street addresses: Nominatim's job below).
+  if (!/\d/.test(query)) try {
+    const p = await (await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=${limit * 2}&lang=${LANG}&layer=city&layer=locality&layer=district`, { signal })).json();
+    const seen = new Set();
+    const hits = [];
+    for (const f of p.features || []) {
+      const pr = f.properties || {};
+      const key = `${pr.name}|${pr.state}|${pr.country}`;
+      if (!pr.name || seen.has(key)) continue; // same town as point + area
+      seen.add(key);
+      const [lon, lat] = f.geometry.coordinates;
+      hits.push({
+        lat, lon,
+        name: pr.name + (pr.country ? `, ${pr.country}` : ""),
+        detail: [pr.state, pr.country].filter(Boolean).join(", "),
+      });
+    }
+    if (hits.length) return hits.slice(0, limit);
+  } catch (err) {
+    if (err.name === "AbortError") throw err;
     /* fall through to address geocoder */
   }
   // Standalone (no backend proxy): query Nominatim directly (CORS-open).
   const gd = backendDown
     ? await window.SureLocal.geocodeNominatim(query, LANG)
-    : await fetch(`/geocode?q=${encodeURIComponent(query)}&limit=1&lang=${LANG}`).then((g) => {
+    : await fetch(`/geocode?q=${encodeURIComponent(query)}&limit=${limit}&lang=${LANG}`, { signal }).then((g) => {
       if (!g.ok) throw new Error(tr("err_notfound"));
       return g.json();
     });
-  if (!gd.results || !gd.results.length) throw new Error(tr("err_notfound"));
-  const hit = gd.results[0];
-  return { lat: hit.lat, lon: hit.lon, name: hit.name };
+  return (gd.results || []).slice(0, limit).map((hit) => {
+    // display_name is "Place, district, ..., country": the rest is the detail.
+    const parts = String(hit.name).split(",").map((s) => s.trim());
+    return { lat: hit.lat, lon: hit.lon, name: hit.name, detail: parts.slice(1).join(", ") };
+  });
+}
+
+async function geocode(query) {
+  const hits = await searchPlaces(query, 1);
+  if (!hits.length) throw new Error(tr("err_notfound"));
+  return hits[0];
+}
+
+/* City part of a display name ("Lyon, France" -> "Lyon"); coordinates stay whole. */
+function placeLabel(name) {
+  const s = String(name || "").trim();
+  if (parseLatLon(s)) return s;
+  return s.split(",")[0].trim() || s;
+}
+
+/* Live suggestions under a search field: typing lists the matching places,
+   a tap (or arrows + Enter) picks one, so a typo no longer lands on the
+   wrong city. `onPick(loc)` gets the chosen place. */
+function attachSuggest(form, input, onPick) {
+  const list = document.createElement("ul");
+  list.className = "suggest";
+  list.setAttribute("role", "listbox");
+  list.hidden = true;
+  form.classList.add("search--suggest");
+  form.appendChild(list);
+  input.setAttribute("aria-autocomplete", "list");
+  let items = [];
+  let active = -1;
+  let timer = null;
+  let ctrl = null;
+
+  const close = () => {
+    list.hidden = true;
+    active = -1;
+  };
+  const highlight = (i) => {
+    active = i;
+    [...list.children].forEach((li, k) => li.classList.toggle("suggest__item--active", k === i));
+  };
+  const pick = (i) => {
+    const loc = items[i];
+    if (!loc) return;
+    close();
+    input.value = "";
+    input.blur();
+    onPick(loc);
+  };
+  const render = (hits) => {
+    items = hits;
+    list.innerHTML = "";
+    if (!hits.length) {
+      const li = document.createElement("li");
+      li.className = "suggest__empty";
+      li.textContent = tr("search_none");
+      list.appendChild(li);
+    }
+    hits.forEach((h, i) => {
+      const li = document.createElement("li");
+      li.className = "suggest__item";
+      li.setAttribute("role", "option");
+      const name = document.createElement("span");
+      name.className = "suggest__name";
+      name.textContent = placeLabel(h.name);
+      li.append("📍 ", name);
+      if (h.detail) {
+        const det = document.createElement("span");
+        det.className = "suggest__detail";
+        det.textContent = h.detail;
+        li.appendChild(det);
+      }
+      // pointerdown, not click: fires before the input's blur closes the list.
+      li.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        pick(i);
+      });
+      list.appendChild(li);
+    });
+    active = -1;
+    list.hidden = false;
+  };
+
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    if (ctrl) ctrl.abort();
+    const q = input.value.trim();
+    if (q.length < 2 || parseLatLon(q)) {
+      items = [];
+      close();
+      return;
+    }
+    // 250 ms of quiet before asking: one request per pause, not per key.
+    timer = setTimeout(async () => {
+      ctrl = new AbortController();
+      try {
+        const hits = await searchPlaces(q, 6, ctrl.signal);
+        if (input.value.trim() === q) render(hits);
+      } catch {
+        /* aborted by the next key, or offline: keep the field usable */
+      }
+    }, 250);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (list.hidden || !items.length) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const n = items.length;
+      highlight(e.key === "ArrowDown" ? (active + 1) % n : (active - 1 + n) % n);
+    } else if (e.key === "Escape") {
+      close();
+    }
+  });
+  input.addEventListener("blur", close);
+  // Enter: the highlighted suggestion, else the first one shown. Registered
+  // before the form's own submit handler, which only runs when no list is up.
+  form.addEventListener("submit", (e) => {
+    if (list.hidden || !items.length) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    pick(active >= 0 ? active : 0);
+  });
+}
+
+/* In-app text prompt: window.prompt in the Android app ignores its default
+   value (Capacitor's BridgeWebChromeClient.onJsPrompt), so the favorite name
+   came up empty and had to be retyped. Resolves to the trimmed text, or null
+   when cancelled. */
+function askText(title, value, okLabel) {
+  const d = document.createElement("dialog");
+  if (!d.showModal) {
+    const answer = prompt(title, value);
+    return Promise.resolve(answer === null ? null : answer.trim());
+  }
+  d.className = "sheet ask";
+  const form = document.createElement("form");
+  form.method = "dialog";
+  const h = document.createElement("h2");
+  h.className = "sheet__title";
+  h.textContent = title;
+  const input = document.createElement("input");
+  input.className = "search__input ask__input";
+  input.type = "text";
+  input.maxLength = 60;
+  input.value = value || "";
+  const row = document.createElement("div");
+  row.className = "ask__actions";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "btn btn--ghost";
+  cancel.textContent = tr("cancel");
+  const ok = document.createElement("button");
+  ok.className = "btn btn--primary";
+  ok.value = "ok";
+  ok.textContent = okLabel || "OK";
+  row.append(cancel, ok);
+  form.append(h, input, row);
+  d.appendChild(form);
+  document.body.appendChild(d);
+  return new Promise((resolve) => {
+    cancel.addEventListener("click", () => d.close("cancel"));
+    d.addEventListener("close", () => {
+      resolve(d.returnValue === "ok" ? input.value.trim() : null);
+      d.remove();
+    });
+    d.showModal();
+    input.focus();
+    input.select();
+  });
 }
 
 function locateMe() {
@@ -1736,6 +1935,18 @@ function renderTable(times, byTime) {
 
 /* ---- Events ---- */
 
+// Before the submit handlers below: a picked suggestion must win over them.
+attachSuggest(el("search-form"), el("search-input"), (loc) => {
+  show(el("loading"));
+  goTo(loc).catch((err) => {
+    hide(el("loading"));
+    showError(errorText(err));
+  });
+});
+attachSuggest(el("welcome-form"), el("welcome-input"), (loc) => {
+  welcomeMsg(tr("loading_geocode"));
+  goTo(loc).catch((err) => welcomeMsg(errorText(err)));
+});
 $("#search-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const q = $("#search-input").value.trim();
