@@ -732,7 +732,7 @@ public class WeatherWidget extends AppWidgetProvider {
         Grid g15 = null;
         try { g15 = gridF.get(remainingMs(deadline), TimeUnit.MILLISECONDS); } catch (Exception e) { gridF.cancel(true); }
         if (g15 != null) {
-            for (int s = 0; s < g15.t.length && fTimes.size() < 8; s++) {
+            for (int s = 0; s < g15.t.length && fTimes.size() < RadarFrames.FORECAST_SLOTS; s++) {
                 if (g15.t[s] > ref) { fTimes.add(g15.t[s]); fGrids.add(g15.g[s]); }
             }
         } else {
@@ -741,6 +741,7 @@ public class WeatherWidget extends AppWidgetProvider {
                 for (int s = 0; s < gh.t.length; s++) { fTimes.add(gh.t[s]); fGrids.add(gh.g[s]); }
             }
         }
+        RadarFrames.addMidpoints(fTimes, fGrids);
 
         Bitmap stitched = null;
         try { stitched = baseF.get(remainingMs(deadline), TimeUnit.MILLISECONDS); } catch (Exception e) { baseF.cancel(true); }
@@ -833,7 +834,7 @@ public class WeatherWidget extends AppWidgetProvider {
         return stitched;
     }
 
-    /** Last 7 RainViewer past frames as 512 px overlays of the z11 zone. All z7
+    /** Last RadarFrames.PAST_FRAMES RainViewer past frames as 512 px overlays of the z11 zone. All z7
      * tiles of all frames are downloaded concurrently; a frame with a failed
      * tile is skipped. */
     static void fetchRadar(Context ctx, int z, int x0, int y0, List<Bitmap> outBmps, List<Long> outTimes) throws Exception {
@@ -857,7 +858,7 @@ public class WeatherWidget extends AppWidgetProvider {
         final int WIN = 512 / F;
         int xa = x0 / F, xb = (x0 + 1) / F; // integer division = floor
         int ya = y0 / F, yb = (y0 + 1) / F;
-        int first = Math.max(0, past.length() - 7);
+        int first = Math.max(0, past.length() - RadarFrames.PAST_FRAMES);
         List<List<Future<Bitmap>>> all = new ArrayList<>();
         List<Long> times = new ArrayList<>();
         for (int k = first; k < past.length(); k++) {
@@ -928,7 +929,7 @@ public class WeatherWidget extends AppWidgetProvider {
             }
             c = openConn(ctx, "https://api.open-meteo.com/v1/forecast?latitude=" + la
                     + "&longitude=" + lo
-                    + (quarter ? "&minutely_15=precipitation&forecast_minutely_15=10&timezone=UTC"
+                    + (quarter ? "&minutely_15=precipitation&forecast_minutely_15=12&timezone=UTC"
                                : "&hourly=precipitation&forecast_hours=7&timezone=UTC"));
             String body = readAll(c);
             if (body == null) return null;
@@ -970,14 +971,15 @@ public class WeatherWidget extends AppWidgetProvider {
         }
     }
 
-    /** One animation frame (S=360 = 120dp at xxhdpi, one px per device px): base
+    /** One animation frame (S=420 = 140dp at xxhdpi, one px per device px): base
      * crop (dark fill when the base failed), radar or model overlay, centre
      * marker, big time label with a radar/prevision tag and a progress bar with a
      * tick on the "now" frame. Forecast frames also get an amber border so they
      * are never mistaken for observations. */
     static Bitmap rainFrame(Bitmap base, Bitmap radar, int left, int top, double[][] mm,
                             String label, boolean forecast, int idx, int total, int nowIdx) {
-        final int S = 360;
+        final int S = 420;
+        final float k = S / 360f; // drawing constants below were tuned at 360
         Bitmap frame = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(frame);
         Paint smooth = new Paint();
@@ -996,41 +998,40 @@ public class WeatherWidget extends AppWidgetProvider {
         // Place marker: white dot on a dark ring, readable over any rain colour.
         Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
         dot.setColor(0xCC000000);
-        c.drawCircle(S / 2f, S / 2f, 8f, dot);
+        c.drawCircle(S / 2f, S / 2f, 8f * k, dot);
         dot.setColor(0xFFFFFFFF);
-        c.drawCircle(S / 2f, S / 2f, 6f, dot);
+        c.drawCircle(S / 2f, S / 2f, 6f * k, dot);
         if (forecast) {
             Paint border = new Paint();
             border.setStyle(Paint.Style.STROKE);
-            border.setStrokeWidth(4f);
+            border.setStrokeWidth(4f * k);
             border.setColor(AMBER);
-            c.drawRect(2f, 2f, S - 2f, S - 2f, border);
+            c.drawRect(2f * k, 2f * k, S - 2f * k, S - 2f * k, border);
         }
         Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
         tp.setColor(0xFFFFFFFF);
-        tp.setTextSize(38f);
+        tp.setTextSize(38f * k);
         tp.setFakeBoldText(true);
-        tp.setShadowLayer(5f, 3f, 3f, 0xCC000000);
-        c.drawText(label, 13f, 39f, tp);
+        tp.setShadowLayer(5f * k, 3f * k, 3f * k, 0xCC000000);
+        c.drawText(label, 13f * k, 39f * k, tp);
         Paint tag = new Paint(Paint.ANTI_ALIAS_FLAG);
         tag.setColor(forecast ? AMBER : 0xFFFFFFFF);
-        tag.setTextSize(21f);
+        tag.setTextSize(21f * k);
         tag.setFakeBoldText(true);
-        tag.setShadowLayer(4f, 1f, 1f, 0xCC000000);
-        c.drawText(forecast ? "prévision" : "radar", 13f, 63f, tag);
-        // Progress, under the label (the bottom is covered by the "Pluie ..."
-        // banner): filled up to this frame, white for observed / amber for
+        tag.setShadowLayer(4f * k, 1f * k, 1f * k, 0xCC000000);
+        c.drawText(forecast ? "prévision" : "radar", 13f * k, 63f * k, tag);
+        // Progress, under the label (next to the time it counts): filled up to this frame, white for observed / amber for
         // forecast, plus a tick where "now" is.
-        final float bx0 = 13f, bx1 = S - 13f;
+        final float bx0 = 13f * k, bx1 = S - 13f * k;
         final float step = total > 1 ? (bx1 - bx0) / (total - 1) : 0f;
         Paint bar = new Paint();
         bar.setColor(0x55FFFFFF);
-        c.drawRect(bx0, 70f, bx1, 75f, bar);
+        c.drawRect(bx0, 70f * k, bx1, 75f * k, bar);
         bar.setColor(forecast ? AMBER : 0xFFFFFFFF);
-        c.drawRect(bx0, 70f, bx0 + step * idx, 75f, bar);
+        c.drawRect(bx0, 70f * k, bx0 + step * idx, 75f * k, bar);
         bar.setColor(0xFFFFFFFF);
         float xn = bx0 + step * nowIdx;
-        c.drawRect(xn - 1f, 68f, xn + 1f, 78f, bar);
+        c.drawRect(xn - 1f * k, 68f * k, xn + 1f * k, 78f * k, bar);
         return frame;
     }
 
