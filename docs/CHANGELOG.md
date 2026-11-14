@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.6.2 (2026-11-14)
+
+### App
+
+- First launch asks for your location or a city instead of silently showing Paris, and says when geolocation is refused.
+- The trust pill reads "confidence NN%" and opens a sheet explaining calibration, the rain chance and "uncal.".
+- Network errors are translated and mention the cached forecast left on screen; a forecast over 1 h old shows its age.
+- Place suggestions while typing, with a typo-tolerant fallback (Photon); favorite names are prefilled with the city.
+- Geocoding follows the UI language; unknown browser languages fall back to English.
+- Fixes: the in-app updater no longer offers the version already installed; readable active range button in dark mode.
+
+### Widget and notification
+
+- Radar favours the forecast (3 radar frames, 2 h of forecast, smoother morph); larger texts and map filling the widget height.
+- The lock-screen notification shows the temperature as its status-bar icon.
+
+### Security
+
+- Admin token compared in constant time; floors raised on vulnerable transitive Python dependencies.
+- Releases now ship a single certo-vX.Y.Z.apk.
+
 ## 1.6.1 (2026-10-27)
 
 ### Lock screen
