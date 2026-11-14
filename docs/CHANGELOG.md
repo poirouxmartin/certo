@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.3 (2026-11-14)
+
+### App
+
+- The update banner compares the repository version with the version Android reports for the installed app, no longer with a constant in the page: v1.6.1 shipped with that constant still at 1.6.0, so the banner kept offering an update the installer refused ("not newer than the installed one").
+- If the installer still answers "not newer", the banner hides instead of showing the error.
+- The footer shows the installed version as reported by Android.
+- First launch after an update clears the WebView cache, so no page file of the previous version can outlive it (saved places and forecasts are kept).
+- A test now fails when `VERSION`, the Android versionName and the page's version constant disagree.
+
 ## 1.6.2 (2026-11-14)
 
 ### App

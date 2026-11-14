@@ -881,7 +881,7 @@ let backendDown = forceLocal;
    Releases up to v1.6.1 also carried a sure-weather-vX.Y.Z.apk copy for v1.5.2 and older (they look for that name); later releases ship certo-vX.Y.Z.apk only.
    Checked against a raw VERSION file (no rate-limit, CORS-open) — the
    api.github.com endpoint is unusable (60 req/h/IP, shared mobile NATs). */
-const APP_VERSION = "1.6.2";
+const APP_VERSION = "1.6.3";
 const APP_REPO = "poirouxmartin/certo";
 // Native-only bridge to AppUpdaterPlugin.java (registered in MainActivity).
 // Undefined in the browser/PWA, where the banner is a plain link to the APK.
