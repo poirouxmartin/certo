@@ -889,6 +889,14 @@ const APP_REPO = "poirouxmartin/certo";
 // @capacitor/core, not shipped here): natively registered plugins are exposed
 // as proxies on Capacitor.Plugins instead (checked over CDP on the emulator).
 const AppUpdater = isNativeApp ? window.Capacitor?.Plugins?.AppUpdater : undefined;
+/* In the APK the running version comes from the package manager, never from
+   APP_VERSION: v1.6.1 shipped APP_VERSION "1.6.0", so the banner offered an
+   update the installer refused (NOT_NEWER). null = native but unknown. */
+let appVersion = APP_VERSION;
+const appVersionReady = !AppUpdater ? Promise.resolve(APP_VERSION)
+  : Promise.resolve().then(() => AppUpdater.getInfo())
+    .then((info) => (appVersion = info?.versionName || null))
+    .catch(() => (appVersion = null));
 
 /* Lock-screen weather (LockScreenPlugin.java): Android phones take no
    third-party lock-screen widget, so the APK posts a silent notification
@@ -935,7 +943,8 @@ async function checkAppUpdate() {
     clearTimeout(t);
     if (!r.ok) throw new Error(`VERSION ${r.status}`);
     const tag = (await r.text()).trim().replace(/^v/, "");
-    if (!tag || cmpVersions(tag, APP_VERSION) <= 0) return;
+    const installed = await appVersionReady;
+    if (!tag || !installed || cmpVersions(tag, installed) <= 0) return;
     const banner = document.getElementById("update-banner");
     if (!banner) return;
     const apkUrl = `https://github.com/${APP_REPO}/releases/download/v${tag}/certo-v${tag}.apk`;
@@ -961,7 +970,9 @@ async function checkAppUpdate() {
           await AppUpdater.downloadAndInstall({ url: apkUrl, expectedVersion: tag });
           banner.innerHTML = idle;
         } catch (e) {
-          banner.textContent = e?.message || String(e);
+          // Already up to date: nothing to offer, an error would only confuse.
+          if (e?.code === "NOT_NEWER") banner.hidden = true;
+          else banner.textContent = e?.message || String(e);
         } finally {
           busy = false;
         }
@@ -1290,7 +1301,7 @@ function render(data, hours = state.hours) {
     models: shown,
     st: stationCount,
     u: new Date(data.generated_at).toLocaleTimeString(LANG === "en" ? "en-GB" : "fr-FR"),
-  }) + ` · v${APP_VERSION}`;
+  }) + (appVersion ? ` · v${appVersion}` : "");
   footerEl.title = `${tr("sources_full")}: ${modelNames.join(", ")} | ${stationNames.join(", ")}`;
   centerMapOn(state.lat, state.lon, state.name);
   loadRadar();

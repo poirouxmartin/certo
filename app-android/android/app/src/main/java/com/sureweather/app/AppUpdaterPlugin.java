@@ -34,6 +34,22 @@ public class AppUpdaterPlugin extends Plugin {
     // does not follow cross-protocol hops by itself, so redirects are walked here.
     private static final int MAX_REDIRECTS = 5;
 
+    /* Installed version, the only trustworthy one: the JS constant APP_VERSION
+       shipped stale in v1.6.1 (said 1.6.0), so the banner kept offering an
+       update the installer then refused as NOT_NEWER. */
+    @PluginMethod
+    public void getInfo(PluginCall call) {
+        try {
+            Context ctx = getContext();
+            PackageInfo info = ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0);
+            call.resolve(new JSObject()
+                    .put("versionName", info.versionName)
+                    .put("versionCode", versionCodeOf(info)));
+        } catch (PackageManager.NameNotFoundException e) {
+            call.reject("Application introuvable", "NOT_FOUND");
+        }
+    }
+
     @PluginMethod
     public void downloadAndInstall(PluginCall call) {
         String url = call.getString("url", "");

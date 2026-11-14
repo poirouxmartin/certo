@@ -24,6 +24,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AppUpdaterPlugin.class);
         registerPlugin(LockScreenPlugin.class);
         super.onCreate(savedInstanceState);
+        dropWebCacheOnUpgrade();
         try {
             // Without a widget nor the lock-screen notification there is nothing to
             // refresh: no persisted 15 min network wake-up.
@@ -66,6 +67,23 @@ public class MainActivity extends BridgeActivity {
         });
         maybePinWidget(getIntent());
         applySystemBars();
+    }
+
+    /** First launch of a new versionCode: drop the WebView HTTP cache and reload,
+     * so no web asset of the previous APK can outlive it. Storage is kept. */
+    private void dropWebCacheOnUpgrade() {
+        try {
+            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            long code = Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
+            android.content.SharedPreferences prefs = getSharedPreferences("certo_app", MODE_PRIVATE);
+            if (prefs.getLong("web_version_code", -1) == code) return;
+            bridge.getWebView().clearCache(true);
+            bridge.getWebView().reload();
+            prefs.edit().putLong("web_version_code", code).apply();
+            android.util.Log.i(WeatherWidget.TAG, "versionCode " + code + ": WebView cache cleared");
+        } catch (Throwable t) {
+            android.util.Log.w(WeatherWidget.TAG, "WebView cache reset failed: " + t);
+        }
     }
 
     @Override
