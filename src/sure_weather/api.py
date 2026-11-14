@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import html
 import ipaddress
 import os
@@ -82,7 +83,8 @@ def _get_vapid_keys() -> dict:
 # ---- Admin gate + endpoint validation for push (anti-spam / anti-SSRF) ----
 def _require_admin(token: str | None) -> None:
     expected = os.environ.get("SURE_WEATHER_ADMIN_TOKEN", "")
-    if not expected or token != expected:
+    # compare_digest: a plain != leaks the matching prefix length through timing.
+    if not expected or not hmac.compare_digest((token or "").encode(), expected.encode()):
         raise HTTPException(status_code=403, detail="admin token required")
 
 
