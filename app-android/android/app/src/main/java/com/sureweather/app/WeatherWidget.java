@@ -371,6 +371,10 @@ public class WeatherWidget extends AppWidgetProvider {
         int[] idsWind = {R.id.h0_wind, R.id.h1_wind, R.id.h2_wind, R.id.h3_wind, R.id.h4_wind, R.id.h5_wind};
         int[] idsBox = {R.id.h0, R.id.h1, R.id.h2, R.id.h3, R.id.h4, R.id.h5};
         List<JSONObject> hours = upcomingHours(st, System.currentTimeMillis(), HOURS_SHOWN);
+        // No rain anywhere in the strip: drop the whole line (an empty TextView
+        // still takes a line), so the wind line keeps clear of the bottom edge.
+        boolean anyRain = false;
+        for (JSONObject h : hours) anyRain |= !h.optString("rain", "").isEmpty();
         for (int i = 0; i < HOURS_SHOWN; i++) {
             JSONObject h = i < hours.size() ? hours.get(i) : null;
             if (h == null) {
@@ -381,7 +385,8 @@ public class WeatherWidget extends AppWidgetProvider {
             v.setTextViewText(idsTime[i], h.optString("t", ""));
             v.setTextViewText(idsIcon[i], h.optString("icon", ""));
             v.setTextViewText(idsTemp[i], h.optString("temp", ""));
-            v.setTextViewText(idsRain[i], h.optString("rain", ""));
+            v.setViewVisibility(idsRain[i], anyRain ? View.VISIBLE : View.GONE);
+            v.setTextViewText(idsRain[i], stripRainMark(h.optString("rain", "")));
             v.setTextViewText(idsWind[i], h.optString("wind", ""));
         }
 
@@ -422,6 +427,15 @@ public class WeatherWidget extends AppWidgetProvider {
             v.addView(R.id.widget_rain_flipper, fv);
         }
         return v;
+    }
+
+    /** "💧98%" -> "98%" for the hour strip: a column is ~35 dp wide (6 hours
+     * beside the 140 dp map), and with the drop the text wrapped onto two
+     * lines from font scale 1.15, pushing the wind line out of the widget.
+     * The blue colour and the rain icon above already say what it is. The
+     * notification keeps the drop (one line of text, no width issue). */
+    static String stripRainMark(String rain) {
+        return rain.replace("💧", "").trim();
     }
 
     /** The first `max` cached hours still ahead of `now` (the slot labelled

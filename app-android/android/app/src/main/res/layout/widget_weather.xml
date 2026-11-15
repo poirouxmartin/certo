@@ -4,10 +4,15 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="10dp"
+    android:paddingLeft="10dp"
+    android:paddingRight="10dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp"
     android:background="@drawable/widget_bg">
 
-    <!-- Lieu + horodate + refresh -->
+    <!-- Lieu + horodate. Le ⟳ (32 dp) est passé sur la carte : dans cette
+         ligne il imposait 32 dp de haut pour un texte de ~21, et à police
+         1,15 la ligne du vent sortait par le bas (Pixel 8, 15 nov. 2026). -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -37,21 +42,11 @@
             android:text=""
             android:textSize="12sp"
             android:textColor="#E2E8F0"
-            android:layout_marginEnd="4dp"
+            android:maxLines="1"
             android:shadowColor="#80000000"
             android:shadowDx="1"
             android:shadowDy="1"
             android:shadowRadius="2" />
-
-        <TextView
-            android:id="@+id/widget_refresh"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:text="⟳"
-            android:textSize="18sp"
-            android:textColor="#FFFFFF"
-            android:gravity="center"
-            android:background="@drawable/widget_chip" />
     </LinearLayout>
 
     <!-- Infos à gauche, carte à droite ; la ligne prend toute la hauteur restante
@@ -91,6 +86,7 @@
                     android:layout_height="wrap_content"
                     android:text="--°"
                     android:textSize="34sp"
+                    android:includeFontPadding="false"
                     android:textStyle="bold"
                     android:textColor="#FFFFFF"
                     android:maxLines="1"
@@ -148,46 +144,46 @@
                 android:layout_marginTop="2dp">
 
                 <LinearLayout android:id="@+id/h0" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
-                    <TextView android:id="@+id/h0_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#CBD5E1" android:text="--" />
+                    <TextView android:id="@+id/h0_time" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#CBD5E1" android:text="--" />
                     <TextView android:id="@+id/h0_icon" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="20sp" android:text="" />
-                    <TextView android:id="@+id/h0_temp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:text="" />
-                    <TextView android:id="@+id/h0_rain" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#93C5FD" android:text="" />
-                    <TextView android:id="@+id/h0_wind" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#CBD5E1" android:text="" />
+                    <TextView android:id="@+id/h0_temp" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:text="" />
+                    <TextView android:id="@+id/h0_rain" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#93C5FD" android:text="" />
+                    <TextView android:id="@+id/h0_wind" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#CBD5E1" android:text="" />
                 </LinearLayout>
                 <LinearLayout android:id="@+id/h1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
-                    <TextView android:id="@+id/h1_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#CBD5E1" android:text="--" />
+                    <TextView android:id="@+id/h1_time" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#CBD5E1" android:text="--" />
                     <TextView android:id="@+id/h1_icon" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="20sp" android:text="" />
-                    <TextView android:id="@+id/h1_temp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:text="" />
-                    <TextView android:id="@+id/h1_rain" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#93C5FD" android:text="" />
-                    <TextView android:id="@+id/h1_wind" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#CBD5E1" android:text="" />
+                    <TextView android:id="@+id/h1_temp" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:text="" />
+                    <TextView android:id="@+id/h1_rain" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#93C5FD" android:text="" />
+                    <TextView android:id="@+id/h1_wind" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#CBD5E1" android:text="" />
                 </LinearLayout>
                 <LinearLayout android:id="@+id/h2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
-                    <TextView android:id="@+id/h2_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#CBD5E1" android:text="--" />
+                    <TextView android:id="@+id/h2_time" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#CBD5E1" android:text="--" />
                     <TextView android:id="@+id/h2_icon" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="20sp" android:text="" />
-                    <TextView android:id="@+id/h2_temp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:text="" />
-                    <TextView android:id="@+id/h2_rain" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#93C5FD" android:text="" />
-                    <TextView android:id="@+id/h2_wind" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#CBD5E1" android:text="" />
+                    <TextView android:id="@+id/h2_temp" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:text="" />
+                    <TextView android:id="@+id/h2_rain" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#93C5FD" android:text="" />
+                    <TextView android:id="@+id/h2_wind" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#CBD5E1" android:text="" />
                 </LinearLayout>
                 <LinearLayout android:id="@+id/h3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
-                    <TextView android:id="@+id/h3_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#CBD5E1" android:text="--" />
+                    <TextView android:id="@+id/h3_time" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#CBD5E1" android:text="--" />
                     <TextView android:id="@+id/h3_icon" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="20sp" android:text="" />
-                    <TextView android:id="@+id/h3_temp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:text="" />
-                    <TextView android:id="@+id/h3_rain" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#93C5FD" android:text="" />
-                    <TextView android:id="@+id/h3_wind" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#CBD5E1" android:text="" />
+                    <TextView android:id="@+id/h3_temp" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:text="" />
+                    <TextView android:id="@+id/h3_rain" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#93C5FD" android:text="" />
+                    <TextView android:id="@+id/h3_wind" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#CBD5E1" android:text="" />
                 </LinearLayout>
                 <LinearLayout android:id="@+id/h4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
-                    <TextView android:id="@+id/h4_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#CBD5E1" android:text="--" />
+                    <TextView android:id="@+id/h4_time" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#CBD5E1" android:text="--" />
                     <TextView android:id="@+id/h4_icon" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="20sp" android:text="" />
-                    <TextView android:id="@+id/h4_temp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:text="" />
-                    <TextView android:id="@+id/h4_rain" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#93C5FD" android:text="" />
-                    <TextView android:id="@+id/h4_wind" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#CBD5E1" android:text="" />
+                    <TextView android:id="@+id/h4_temp" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:text="" />
+                    <TextView android:id="@+id/h4_rain" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#93C5FD" android:text="" />
+                    <TextView android:id="@+id/h4_wind" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#CBD5E1" android:text="" />
                 </LinearLayout>
                 <LinearLayout android:id="@+id/h5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
-                    <TextView android:id="@+id/h5_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#CBD5E1" android:text="--" />
+                    <TextView android:id="@+id/h5_time" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#CBD5E1" android:text="--" />
                     <TextView android:id="@+id/h5_icon" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="20sp" android:text="" />
-                    <TextView android:id="@+id/h5_temp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:text="" />
-                    <TextView android:id="@+id/h5_rain" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#93C5FD" android:text="" />
-                    <TextView android:id="@+id/h5_wind" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#CBD5E1" android:text="" />
+                    <TextView android:id="@+id/h5_temp" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:text="" />
+                    <TextView android:id="@+id/h5_rain" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#93C5FD" android:text="" />
+                    <TextView android:id="@+id/h5_wind" android:includeFontPadding="false" android:maxLines="1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#CBD5E1" android:text="" />
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>
@@ -206,6 +202,18 @@
                 android:flipInterval="450"
                 android:inAnimation="@anim/widget_fade_in"
                 android:outAnimation="@anim/widget_fade_out" />
+
+            <!-- Coin haut droit : le coin haut gauche porte l'heure de l'image -->
+            <TextView
+                android:id="@+id/widget_refresh"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="top|end"
+                android:text="⟳"
+                android:textSize="18sp"
+                android:textColor="#FFFFFF"
+                android:gravity="center"
+                android:background="@drawable/widget_chip" />
         </FrameLayout>
     </LinearLayout>
 </LinearLayout>
