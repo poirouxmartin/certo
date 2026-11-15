@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.4 (2026-11-15)
+
+### App
+
+- The current weather sits in the notification bar by default: temperature next to the clock, conditions and the next hours in the shade and on the lock screen, updated with the widget. The app turns it on once at the first forecast (Android asks for the notification permission there).
+- New settings sheet (⚙️ in the top bar) with a switch for that notification; it replaces the 🔒 button. When Android blocks the notifications, the sheet says so and opens Android's settings.
+
+### Widget
+
+- Rain and wind are no longer cut at the bottom with a larger font: the ⟳ button moved onto the map corner (the header line is shorter), the hour lines lost their extra font padding, the rain line disappears when no hour has rain, and the rain chance drops the 💧 so it stays on one line. Text sizes are unchanged.
+
 ## 1.6.3 (2026-11-14)
 
 ### App
