@@ -44,7 +44,7 @@
           <span class="ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg></span>
         </button>
         <button class="btn btn--ghost" id="notif-btn" type="button" hidden data-i18n-title="notif_on" title="Activer les alertes météo">🔔</button>
-        <button class="btn btn--ghost" id="lock-btn" type="button" hidden aria-pressed="false" data-i18n-title="lock_off" title="Afficher la météo sur l'écran verrouillé">🔒</button>
+        <button class="btn btn--ghost" id="settings-btn" type="button" hidden data-i18n-title="settings" title="Réglages">⚙️</button>
         <button class="btn btn--ghost" id="install-btn" type="button" hidden style="border-style: dashed;" data-i18n-title="install" title="Installer l'app">⬇ Installer</button>
         <button class="btn btn--ghost" id="lang-btn" type="button" data-i18n-title="lang_title" title="FR / EN">FR</button>
         <button class="btn btn--ghost" id="theme-btn" type="button" data-i18n-title="theme">🌙</button>
@@ -268,6 +268,23 @@
     <p data-i18n="conf_sheet_p3"></p>
     <p data-i18n="conf_sheet_p4"></p>
     <form method="dialog"><button class="btn btn--primary sheet__close" data-i18n="conf_sheet_close">Compris</button></form>
+  </dialog>
+
+  <!-- Settings (Android app only: native features) -->
+  <dialog class="sheet" id="settings-sheet" aria-labelledby="settings-sheet-title">
+    <h2 class="sheet__title" id="settings-sheet-title" data-i18n="settings">Réglages</h2>
+    <label class="setting">
+      <span class="setting__text">
+        <span class="setting__label" data-i18n="set_notif">Météo actuelle dans la barre de notifications</span>
+        <span class="setting__hint" data-i18n="set_notif_hint"></span>
+      </span>
+      <input type="checkbox" class="setting__switch" id="set-notif" role="switch">
+    </label>
+    <p class="setting__warn" id="set-notif-blocked" hidden>
+      <span data-i18n="set_notif_blocked"></span>
+      <button class="btn btn--ghost" id="set-notif-open" type="button" data-i18n="set_notif_open">Ouvrir les réglages Android</button>
+    </p>
+    <form method="dialog"><button class="btn btn--primary sheet__close" data-i18n="set_close">Fermer</button></form>
   </dialog>
 
   <script src="/static/vendor/leaflet/leaflet.js" defer></script>

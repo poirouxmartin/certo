@@ -414,6 +414,25 @@ button.sure-badge { border: 0; font-family: inherit; cursor: pointer; }
 .sheet p { margin: 0 0 10px; color: var(--ink-soft); }
 .sheet form { text-align: right; margin-top: 6px; }
 
+/* ---- Settings sheet: one row per switch ---- */
+.setting { display: flex; align-items: center; gap: 14px; padding: 8px 0; cursor: pointer; }
+.setting__text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.setting__label { font-weight: 600; }
+.setting__hint { font-size: 13px; color: var(--ink-soft); }
+.setting__switch {
+  appearance: none; -webkit-appearance: none; flex: none; margin: 0; cursor: pointer;
+  width: 44px; height: 26px; border-radius: 13px; position: relative;
+  background: var(--line-strong); transition: background .15s;
+}
+.setting__switch::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: transform .15s;
+}
+.setting__switch:checked { background: var(--accent, #2563eb); }
+.setting__switch:checked::after { transform: translateX(18px); }
+.setting__switch:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 2px; }
+.sheet .setting__warn { color: var(--ink); font-size: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
 /* ---- Badges: *-ink colours are theme-aware (>= 4.5:1 on their tint) ---- */
 .sure--ok { background: rgba(15,157,88,.13); color: var(--green-ink); }
 .sure--mid { background: var(--accent-soft); color: var(--accent-ink); }

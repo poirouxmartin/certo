@@ -898,27 +898,58 @@ const appVersionReady = !AppUpdater ? Promise.resolve(APP_VERSION)
     .then((info) => (appVersion = info?.versionName || null))
     .catch(() => (appVersion = null));
 
-/* Lock-screen weather (LockScreenPlugin.java): Android phones take no
-   third-party lock-screen widget, so the APK posts a silent notification
-   visible before unlocking. Opt-in toggle, native app only. */
+/* Current-weather notification (LockScreenPlugin.java): temperature in the
+   status bar, details in the shade and on the lock screen (phones take no
+   third-party lock-screen widget). On by default: the first forecast shown
+   turns it on once (Android asks the permission there, not over the
+   place chooser); then the switch of the settings sheet, native app only.
+   It replaces the 1.6.3 opt-in 🔒 button, which Martin never found. */
 const LockScreen = isNativeApp ? window.Capacitor?.Plugins?.LockScreen : undefined;
-const lockBtn = document.getElementById("lock-btn");
-function showLockState(st) {
-  const on = !!(st && st.enabled);
-  lockBtn.textContent = on ? "🔒✓" : "🔒";
-  lockBtn.setAttribute("aria-pressed", String(on));
-  setTip(lockBtn, tr(on ? "lock_on" : "lock_off"));
-  lockBtn.hidden = false;
+const settingsBtn = el("settings-btn");
+const notifSwitch = el("set-notif");
+const notifBlocked = el("set-notif-blocked");
+let notifTriedOn = false;
+function showNotifState(st) {
+  notifSwitch.checked = !!(st && st.enabled);
+  // Blocked by Android (permission refused, app or channel switched off):
+  // only the system settings can unblock it.
+  notifBlocked.hidden = !st || st.allowed || !(st.enabled || notifTriedOn);
 }
-if (LockScreen && lockBtn) {
-  LockScreen.getState().then(showLockState).catch(() => {});
-  lockBtn.addEventListener("click", async () => {
-    try {
-      const on = lockBtn.getAttribute("aria-pressed") !== "true";
-      showLockState(await LockScreen.setEnabled({ enabled: on }));
-    } catch (e) {
-      lockBtn.title = e?.message || String(e);
-    }
+async function setNotif(on) {
+  notifTriedOn = on;
+  try {
+    showNotifState(await LockScreen.setEnabled({ enabled: on }));
+  } catch (e) {
+    showNotifState(await LockScreen.getState().catch(() => null));
+  }
+}
+let notifFirstRunDone = !LockScreen;
+function notifFirstRun() {
+  if (notifFirstRunDone) return;
+  notifFirstRunDone = true;
+  LockScreen.getState().then((st) => (st && !st.asked ? setNotif(true) : showNotifState(st))).catch(() => {});
+}
+if (LockScreen) {
+  settingsBtn.hidden = false;
+  LockScreen.getState().then(showNotifState).catch(() => {});
+  settingsBtn.addEventListener("click", () => {
+    LockScreen.getState().then(showNotifState).catch(() => {});
+    const d = el("settings-sheet");
+    if (d.showModal) d.showModal();
+    else d.setAttribute("open", "");
+  });
+  el("settings-sheet").addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) e.currentTarget.close();
+  });
+  notifSwitch.addEventListener("change", () => setNotif(notifSwitch.checked));
+  el("set-notif-open").addEventListener("click", () => LockScreen.openSystemSettings().catch(() => {}));
+  // Back from Android's settings: unblocked with the switch on -> post it now.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    LockScreen.getState().then((st) => {
+      if (st && st.allowed && !notifBlocked.hidden) return setNotif(true);
+      showNotifState(st);
+    }).catch(() => {});
   });
 }
 
@@ -1244,6 +1275,7 @@ function render(data, hours = state.hours) {
   currentData = data;
   // Startup benchmark hook (app-android/perf): first real data on screen.
   if (!performance.getEntriesByName("sw-first-render").length) performance.mark("sw-first-render");
+  notifFirstRun();
   hide(el("loading"));
   hide(el("empty"));
   show(el("content"));

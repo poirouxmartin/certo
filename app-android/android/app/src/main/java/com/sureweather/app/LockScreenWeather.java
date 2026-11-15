@@ -27,8 +27,9 @@ import java.util.List;
  * Android 15+ return (widgetCategory "keyguard") is limited to the tablet
  * hub; OEM lock screens (One UI, MIUI...) only list their own. A PUBLIC
  * notification is the one surface every phone shows before unlocking. It
- * is opt-in (app button), fed by the widget refresh (WidgetRefreshJob, 15 min)
- * from the same cached state, and turned off when the user swipes it away.
+ * is on by default (the app asks once at launch, see wasAsked), switched in
+ * the app's settings sheet, fed by the widget refresh (WidgetRefreshJob,
+ * 15 min) from the same cached state, and turned off when swiped away.
  */
 final class LockScreenWeather {
 
@@ -42,6 +43,13 @@ final class LockScreenWeather {
 
     static boolean isEnabled(Context ctx) {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("enabled", false);
+    }
+
+    /** False until the first answer (on, off or permission refused): the app
+     * then turns it on by itself once. Martin never found the old opt-in 🔒
+     * button and thought the feature was missing (15 Nov 2026). */
+    static boolean wasAsked(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains("enabled");
     }
 
     static void setEnabled(Context ctx, boolean on) {
@@ -70,17 +78,20 @@ final class LockScreenWeather {
     private static void ensureChannel(Context ctx) {
         if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager m = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (m == null || m.getNotificationChannel(CHANNEL) != null) return;
+        if (m == null) return;
         /* DEFAULT, not LOW: Pixel (and Android 14+ by default) hides "silent"
          * notifications, i.e. channels under DEFAULT, from the lock screen;
          * checked on the Pixel 8 emulator (27 Oct 2026). Sound and vibration
-         * are removed instead, and DEFAULT never pops up as a heads-up. */
-        NotificationChannel ch = new NotificationChannel(CHANNEL, "Météo sur l'écran verrouillé",
+         * are removed instead, and DEFAULT never pops up as a heads-up.
+         * Created on every post: re-creating an existing channel only
+         * updates its name and description (1.6.3 named it after the lock
+         * screen alone); the user's own channel settings are kept. */
+        NotificationChannel ch = new NotificationChannel(CHANNEL, "Météo actuelle",
                 NotificationManager.IMPORTANCE_DEFAULT);
         ch.setSound(null, null);
         ch.enableVibration(false);
         ch.enableLights(false);
-        ch.setDescription("Température et prochaines heures, visibles sans déverrouiller");
+        ch.setDescription("Température dans la barre d'état, météo et prochaines heures dans les notifications et sur l'écran verrouillé");
         ch.setShowBadge(false);
         ch.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
         m.createNotificationChannel(ch);
