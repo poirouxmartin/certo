@@ -965,8 +965,17 @@ async function checkAppUpdate() {
         ev.preventDefault();
         if (busy) return;
         busy = true;
-        banner.textContent = tr("update_progress", { p: 0 });
         try {
+          /* The banner was decided at page load. Martin's v1.6.1 page offered
+             v1.6.2 while the phone already ran it (footer v1.6.2 afterwards,
+             14 Nov 2026), so ask the package manager again before a 4 MB
+             download the installer would refuse. */
+          const live = await AppUpdater.getInfo().catch(() => null);
+          if (live?.versionName && cmpVersions(tag, live.versionName) <= 0) {
+            banner.hidden = true;
+            return;
+          }
+          banner.textContent = tr("update_progress", { p: 0 });
           await AppUpdater.downloadAndInstall({ url: apkUrl, expectedVersion: tag });
           banner.innerHTML = idle;
         } catch (e) {
