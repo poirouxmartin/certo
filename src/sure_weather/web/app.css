@@ -364,6 +364,12 @@ html[data-theme="dark"] body[data-sky="partly"] { background: linear-gradient(18
 .hero__sky svg { width: 44px; height: 44px; }
 html[data-theme="dark"] .hero__sky { filter: none; }
 .hero__chips { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+/* A long pill ("Rain falling now · 86% chance") wraps inside the card: as
+   one unbreakable line it widened the page to 431 px on a 411 dp phone,
+   which also pushed the centred sheets off the right edge. inline-block,
+   not flex: flex split the temperature pill into columns when it wrapped. */
+.hero__chips .vpill { display: inline-block; max-width: 100%; white-space: normal; }
+.hero__chips .vpill .vpill__ic { margin-right: 5px; }
 .hero__sub { font-size: 13.5px; color: var(--ink-soft); margin-top: 6px; font-variant-numeric: tabular-nums; line-height: 1.35; }
 
 /* ---- Badges: round, numeric, words on hover ---- */
@@ -396,6 +402,9 @@ button.sure-badge { border: 0; font-family: inherit; cursor: pointer; }
 
 /* ---- Confidence sheet (dialog) ---- */
 .sheet {
+  /* border-box: with the 22 px padding added outside the width, the sheet
+     stuck out of a 412 dp screen on the right (Pixel 8, font 1.15). */
+  box-sizing: border-box;
   max-width: 30em; width: calc(100% - 32px); border: 0; border-radius: var(--r-lg);
   padding: 20px 22px; background: var(--card); color: var(--ink); box-shadow: var(--shadow-lg);
   font-size: 14.5px; line-height: 1.5;
