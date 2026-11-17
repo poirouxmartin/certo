@@ -53,6 +53,19 @@ _SURE_VARIABLES = (
 _FC_TTL_S = 300.0
 _FC_CACHE_MAX = 64
 
+# Retention runs from the background calibration thread, at most this often:
+# one pass rewrites indexes on the forecasts table, hourly would be wasteful.
+_PURGE_INTERVAL_S = 6 * 3600.0
+
+# A brand-new cell costs a synchronous Open-Meteo call, then a 92-day backfill,
+# a METAR fetch and two threads. Per-IP limits do not stop a coordinate sweep
+# from many addresses, so new cells are also capped globally per hour.
+_NEW_CELLS_PER_HOUR = 120
+
+
+class CellBudgetExceeded(Exception):
+    """Too many brand-new cells were opened in the last hour."""
+
 
 def _clamped_range(variable: str, consensus: float, tol: float) -> tuple[float, float]:
     """Honest range (consensus +/- tolerance) clipped to physical bounds.
@@ -163,6 +176,8 @@ class WeatherService:
         # request must never aggregate the residual window twice (the first
         # request would otherwise wait for BOTH computations).
         self._stats_lock = threading.Lock()
+        self._purged_at = 0.0
+        self._new_cells: list[float] = []
 
     # ---- forecast response cache ----
 
@@ -283,6 +298,7 @@ class WeatherService:
         reach_ok = has_data and _parse_dt(reach[0]) >= now + timedelta(hours=24)
 
         if not has_data:
+            self._claim_new_cell()
             # Brand-new cell: a FAST single-model 7-day fetch (one request,
             # ~1-2s) gives full hourly coverage immediately; the complete
             # multi-model + 92-day calibration backfill runs in background
@@ -322,6 +338,27 @@ class WeatherService:
         self._schedule_refresh(center)
         self._schedule_calibration(center)
         return reach_ok
+
+    def _claim_new_cell(self) -> None:
+        """Count a brand-new cell against the global hourly budget."""
+        now = time.time()
+        with self._state_lock:
+            self._new_cells = [t for t in self._new_cells if now - t < 3600]
+            if len(self._new_cells) >= _NEW_CELLS_PER_HOUR:
+                raise CellBudgetExceeded()
+            self._new_cells.append(now)
+
+    def maybe_purge(self, force: bool = False) -> dict[str, int] | None:
+        """Apply the retention policy if the last pass is old enough."""
+        with self._state_lock:
+            now = time.time()
+            if not force and now - self._purged_at < _PURGE_INTERVAL_S:
+                return None
+            self._purged_at = now
+        counts = self.storage.purge(self.config.residual_window_days)
+        self._forecast_invalidate()
+        logger.info("purge: %s", counts)
+        return counts
 
     def _schedule_refresh(self, center: Cell) -> None:
         """Run the 7-day refresh in background: serve stale meanwhile."""
@@ -524,6 +561,10 @@ class WeatherService:
             # the next request fuses with fresh calibration.
             self._forecast_invalidate()
             logger.info("calibration %s: +%d residuals", center.key, len(residuals))
+            try:
+                self.maybe_purge()
+            except Exception as exc:  # retention must not fail calibration
+                logger.warning("purge failed: %s", exc)
         except Exception as exc:
             # Calibration is a background concern: a failed cycle must never
             # break the forecast request; retry in ~10 minutes.

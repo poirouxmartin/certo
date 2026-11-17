@@ -129,6 +129,10 @@ class Storage:
         # are logical: without this lock a commit/rollback from one thread
         # can validate or discard another thread's open transaction.
         self._tx_lock = threading.RLock()
+        # Only effective on a brand-new file (before WAL mode writes the header): lets
+        # purge() hand freed pages back to the OS without a full VACUUM. An
+        # existing database is converted once by `sure-weather purge --vacuum`.
+        self._conn.execute("PRAGMA auto_vacuum=INCREMENTAL;")
         self._conn.execute("PRAGMA journal_mode=WAL;")
         self._conn.execute("PRAGMA synchronous=NORMAL;")
         # Read-path tuning: a bigger page cache and memory-mapped I/O keep
@@ -530,6 +534,77 @@ class Storage:
             )
             for r in rows
         ]
+
+    # ---- retention ----
+
+    def purge(
+        self,
+        keep_days: int,
+        now: datetime | None = None,
+        *,
+        vacuum_pages: int = 2000,
+    ) -> dict[str, int]:
+        """Bound the database size; returns the deleted row count per step.
+
+        Without it every 7-day refresh re-inserts the whole run under a new
+        issued_at (~24 000 rows per cell) forever. Three rules:
+        - anything older than `keep_days` (the residual window) goes: stats
+          and verification never read past it, and its residuals are stored;
+        - past forecast rows superseded by a later issue in the same horizon
+          bucket go: residuals are keyed (valid_at, bucket), so only one issue
+          per bucket can ever be scored. Future rows are left alone, the
+          serving query picks its run among them. Analysis rows (issued ==
+          valid) are not forecasts and are kept;
+        - freed pages are returned with an incremental vacuum (no-op unless
+          the file is in auto_vacuum=INCREMENTAL mode).
+        """
+        now = now or datetime.now(timezone.utc)
+        cutoff = (now - timedelta(days=keep_days)).isoformat()
+        # 1 h margin: the current hour may still receive its analysis row.
+        past = (now - timedelta(hours=1)).isoformat()
+        counts: dict[str, int] = {}
+        with self.tx() as c:
+            counts["forecasts_old"] = c.execute(
+                "DELETE FROM forecasts WHERE valid_at < ?", (cutoff,)
+            ).rowcount
+            counts["forecasts_superseded"] = c.execute(
+                "DELETE FROM forecasts WHERE rowid IN ("
+                "  SELECT rowid FROM ("
+                "    SELECT rowid, ROW_NUMBER() OVER ("
+                "      PARTITION BY provider, cell_key, variable, valid_at, bucket"
+                "      ORDER BY issued_at DESC) AS rn"
+                "    FROM ("
+                "      SELECT rowid, provider, cell_key, variable, valid_at, issued_at,"
+                "        CASE WHEN h <= 6 THEN 3 WHEN h <= 24 THEN 12"
+                "             WHEN h <= 72 THEN 48 ELSE 120 END AS bucket"
+                "      FROM ("
+                "        SELECT rowid, provider, cell_key, variable, valid_at, issued_at,"
+                "          (julianday(valid_at) - julianday(issued_at)) * 24.0 AS h"
+                "        FROM forecasts WHERE valid_at < ? AND issued_at < valid_at"
+                "      )"
+                "    )"
+                "  ) WHERE rn > 1"
+                ")",
+                (past,),
+            ).rowcount
+            counts["observations"] = c.execute(
+                "DELETE FROM observations WHERE time < ?", (cutoff,)
+            ).rowcount
+            counts["residuals"] = c.execute(
+                "DELETE FROM residuals WHERE valid_at < ?", (cutoff,)
+            ).rowcount
+        with self._tx_lock:
+            # fetchall: the pragma frees one page per step of the statement.
+            self._conn.execute(
+                f"PRAGMA incremental_vacuum({int(vacuum_pages)});"
+            ).fetchall()
+        return counts
+
+    def vacuum(self) -> None:
+        """Full rewrite; switches an old file to incremental auto-vacuum."""
+        with self._tx_lock:
+            self._conn.execute("PRAGMA auto_vacuum=INCREMENTAL;")
+            self._conn.execute("VACUUM;")
 
     def close(self) -> None:
         self._conn.close()
