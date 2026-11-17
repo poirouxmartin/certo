@@ -10,14 +10,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Certo" />
   <title>Certo</title>
-  <script>
-    /* Theme before first paint to avoid a flash. */
-    try {
-      const _th = localStorage.getItem("sure-weather-theme") ||
-        (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-      document.documentElement.dataset.theme = _th;
-    } catch { document.documentElement.dataset.theme = "light"; }
-  </script>
+  <!-- Blocking on purpose (theme before first paint). A file, not inline:
+       the server CSP is script-src 'self' and dropped the inline version. -->
+  <script src="/static/theme.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="manifest" href="/manifest.webmanifest" />

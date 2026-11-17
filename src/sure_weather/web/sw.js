@@ -1,12 +1,17 @@
 ﻿/* Certo service worker.
    - App shell: precached, versioned; network-first so deploys always land.
    - /weather: network-first with put + cached fallback for offline.
-   - /tile + /wind-grid: cache-first runtime cache (offline map, upstream
-     hiccups), trimmed to a bounded number of entries. */
-const CACHE = "sure-weather-v15";
+   - /tile + /wind-grid: network-first runtime cache, the cached copy only
+     serves offline (their URLs carry no timestamp: cache-first pinned old
+     weather forever), trimmed to a bounded number of entries.
+   - Cross-origin requests (OSM, RainViewer, fonts) are left to the browser:
+     re-fetching them from the worker put them under connect-src. */
+const CACHE = "sure-weather-v16";
 const RUNTIME = "sure-weather-tiles-v1";
 const RUNTIME_MAX = 600;
-const APP_SHELL = ["/", "/mini.html", "/static/app.css", "/static/app.js", "/static/i18n.js", "/static/local-provider.js", "/static/local-learn.js", "/static/icon.svg",
+// "/mini", not "/mini.html": the server only routes /mini, and one 404 makes
+// addAll reject, so the worker never installed (no offline, push stuck).
+const APP_SHELL = ["/", "/mini", "/static/app.css", "/static/app.js", "/static/i18n.js", "/static/local-provider.js", "/static/local-learn.js", "/static/theme.js", "/static/mini.js", "/static/icon.svg",
   "/static/icon-192.png", "/static/icon-512.png", "/static/icon-maskable-192.png", "/static/icon-maskable-512.png",
   "/static/vendor/leaflet/leaflet.css", "/static/vendor/leaflet/leaflet.js",
   "/static/vendor/leaflet/images/layers.png", "/static/vendor/leaflet/images/layers-2x.png",
@@ -38,16 +43,20 @@ async function trimRuntime() {
   }
 }
 
-async function cacheFirst(e) {
-  const cached = await caches.match(e.request);
-  if (cached) return cached;
-  const resp = await fetch(e.request);
-  if (resp.ok) {
-    const cache = await caches.open(RUNTIME);
-    await cache.put(e.request, resp.clone());
-    trimRuntime();
+async function tileNetworkFirst(e) {
+  try {
+    const resp = await fetch(e.request);
+    if (resp.ok) {
+      const cache = await caches.open(RUNTIME);
+      await cache.put(e.request, resp.clone());
+      trimRuntime();
+    }
+    return resp;
+  } catch {
+    const hit = await caches.match(e.request);
+    if (hit) return hit;
+    throw new Error("offline");
   }
-  return resp;
 }
 
 async function weatherFirst(e) {
@@ -67,8 +76,9 @@ async function weatherFirst(e) {
 
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
+  if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/tile/") || url.pathname === "/wind-grid") {
-    e.respondWith(cacheFirst(e));
+    e.respondWith(tileNetworkFirst(e));
     return;
   }
   if (url.pathname.startsWith("/weather")) {
