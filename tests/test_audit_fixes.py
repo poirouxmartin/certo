@@ -107,8 +107,8 @@ def test_outlier_gate_mad_zero_rejects_lone_outlier():
     assert all(p != "d" for p, _, _ in r.contributors)
 
 
-def test_wind_direction_calibration_is_neutral():
-    """350° vs 10° must not learn a 340° linear bias."""
+def test_wind_direction_residual_is_signed_angle():
+    """350° vs 10° is a -20° error: not a 340° linear bias, not zero."""
     f = ForecastSample(
         provider="m",
         cell_key=CELL,
@@ -125,7 +125,9 @@ def test_wind_direction_calibration_is_neutral():
         value=10.0,
     )
     (res,) = compute_residuals([f], [o], {"m": "model"})
-    assert res.bias == 0.0  # neutral: rmse carries direction error, not bias
+    assert res.predicted == -20.0
+    assert res.observed == 0.0
+    assert abs(res.bias) == 20.0
 
 
 def test_synthetic_horizon_prior_never_calibrated():

@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import logging
-import math
 import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from .calibration import compute_residuals
+from .calibration import (  # noqa: F401  (re-exported for older imports)
+    _HORIZON_INFLATION,
+    _extrapolate_horizon_priors,
+    build_stats,
+    compute_residuals,
+)
 from .collectors import (
     ARCHIVE_MODELS,
     FORECAST_MODELS,
@@ -20,7 +24,6 @@ from .fusion import (
     _VARIABLE_TOLERANCE,
     fuse,
     horizon_bucket,
-    spatial_stats,
 )
 from .grid import cell_from_point, iter_cells_nearby
 from .models import (
@@ -67,46 +70,6 @@ def _clamped_range(variable: str, consensus: float, tol: float) -> tuple[float, 
     if hi_b is not None:
         high = min(high, hi_b)
     return low, high
-
-
-# Horizon prior extrapolation: the archive that grounds long-horizon
-# residuals lags ~5 days, so 12h/48h/120h buckets fill over days. Until a
-# bucket has real residuals, extrapolate the nearest learned bucket with a
-# documented error-growth factor — conservative by construction (rmse grows,
-# sample weight shrinks), it yields cautious calibrated confidence instead
-# of an uncalibrated guess for the first days of a cell's life.
-_HORIZON_INFLATION = {3.0: 1.0, 12.0: 1.35, 48.0: 1.8, 120.0: 2.3}
-
-
-def _extrapolate_horizon_priors(
-    stats: dict[tuple[str, str, str, float], ProviderStat],
-) -> dict[tuple[str, str, str, float], ProviderStat]:
-    by_series: dict[tuple[str, str, str], list[ProviderStat]] = {}
-    for key, s in stats.items():
-        if s.samples >= 3:
-            by_series.setdefault((key[0], key[1], key[2]), []).append(s)
-    out = dict(stats)
-    for (provider, cell_key, variable), learned in by_series.items():
-        learned.sort(key=lambda s: s.horizon_h)
-        base = learned[0]
-        for bucket, factor in _HORIZON_INFLATION.items():
-            key = (provider, cell_key, variable, bucket)
-            if key in out:
-                continue
-            # Synthetic prior: deliberately < 3 samples so it NEVER counts
-            # as calibrated (fusion requires samples >= 3). It only softens
-            # the uncalibrated prior instead of faking learned confidence.
-            out[key] = ProviderStat(
-                provider=provider,
-                cell_key=cell_key,
-                variable=variable,
-                horizon_h=bucket,
-                samples=min(2, max(1, base.samples // 4)),
-                bias=base.bias,
-                rmse=base.rmse * factor,
-                updated_at=base.updated_at,
-            )
-    return out
 
 
 def _summarize(forecast: list[dict], hours: int) -> dict:
@@ -228,31 +191,7 @@ class WeatherService:
                 self._stats = persisted
                 self._stats_fingerprint = fp
                 return persisted
-            stats: dict[tuple[str, str, str, float], ProviderStat] = {}
-            now = datetime.now(timezone.utc)
-            for (
-                provider,
-                cell_key,
-                variable,
-                horizon_h,
-                samples,
-                bias,
-                mse,
-            ) in self.storage.residual_bias_stats(since):
-                stats[(provider, cell_key, variable, horizon_h)] = ProviderStat(
-                    provider=provider,
-                    cell_key=cell_key,
-                    variable=variable,
-                    horizon_h=horizon_h,
-                    samples=samples,
-                    bias=float(bias),
-                    rmse=math.sqrt(mse) if mse is not None else 0.0,
-                    updated_at=now,
-                )
-            cells = self.storage.get_cells()
-            if cells:
-                stats = spatial_stats(stats, cells)
-            stats = _extrapolate_horizon_priors(stats)
+            stats = build_stats(self.storage, since)
             self._stats = stats
             self._stats_fingerprint = fp
             try:
@@ -713,7 +652,9 @@ class WeatherService:
                     bucket = horizon_bucket(rep.valid_at, rep.issued_at)
                     stat = stats.get((prov, rep.cell_key, var0, bucket))
                     bias = stat.bias if stat and stat.samples >= 3 else 0.0
-                    w = _base_weight(stat, kinds.get(prov, "model"), bucket, now)
+                    w = _base_weight(
+                        stat, kinds.get(prov, "model"), bucket, now, variable=var0
+                    )
                     breakdown.append(
                         {
                             "provider": prov,

@@ -9,11 +9,21 @@ import numpy as np
 from ..config import Config
 from ..models import Cell, ForecastSample
 
-# Baseline weight per provider kind when no residual history exists yet.
-_KIND_BASE_WEIGHT = {"model": 1.0, "station": 2.0}
+# Prior error per provider kind, as a fraction of the variable tolerance: an
+# unlearned model is assumed off by one tolerance, a station by half of it.
+# Weights and confidence share this one scale (1/sigma^2) whether a provider
+# is learned or not. The old mix (samples/rmse^2 when learned, a flat 1.0 or
+# 2.0 otherwise) let a calibrated model outweigh a METAR station ~360 to 1.
+_KIND_PRIOR_SCALE = {"model": 1.0, "station": 0.5}
 
-# Prior rmse used when a provider has no learned stats yet, per kind.
-_KIND_PRIOR_RMSE = {"model": 2.0, "station": 1.0}
+# Pseudo-samples given to the prior in the learned error (shrinkage): a few
+# residuals move sigma a little, hundreds replace the prior.
+_PRIOR_SAMPLES = 10.0
+
+# Noise floor, as a fraction of the tolerance: a model with a constant bias
+# has sqrt(rmse^2 - bias^2) -> 0 and read as perfect after bias correction,
+# so sigma_learned collapsed and confidence rested on spread alone.
+_NOISE_FLOOR_SCALE = 0.1
 
 # Tolerance per variable: the fused value is considered "right" when it is
 # within +/- tolerance of the true value. This makes confidence a calibrated
@@ -189,11 +199,38 @@ def spatial_stats(
     return out
 
 
-def _inverse_variance_weight(rmse: float, samples: int) -> float:
-    """1/var scaled by samples: more samples with low rmse dominate."""
-    if samples <= 0 or rmse <= 0:
-        return 1.0
-    return samples / (rmse * rmse)
+def prior_sigma(variable: str, provider_kind: str) -> float:
+    """Expected error of a provider with no learned stats."""
+    tol = _VARIABLE_TOLERANCE.get(variable, 1.5)
+    return tol * _KIND_PRIOR_SCALE.get(provider_kind, 1.0)
+
+
+def provider_sigma(
+    stat: ProviderStat | None,
+    variable: str,
+    provider_kind: str,
+    now: datetime | None = None,
+) -> float:
+    """Expected error of one provider's value once its bias is corrected.
+
+    Learned noise is shrunk toward the kind prior, with the sample count
+    discounted by staleness (stats fade back to the prior over ~8 days), and
+    floored per variable.
+    """
+    prior = prior_sigma(variable, provider_kind)
+    if stat is None or stat.samples < 3:
+        return prior
+    now = now or datetime.now(timezone.utc)
+    age_h = max((now - stat.updated_at).total_seconds() / 3600.0, 0.0)
+    n = stat.samples * math.exp(-age_h / (8 * 24))
+    if variable == "wind_direction_10m":
+        noise = stat.rmse  # directions are never bias-corrected
+    else:
+        noise = math.sqrt(max(stat.rmse * stat.rmse - stat.bias * stat.bias, 0.0))
+    noise = max(noise, _VARIABLE_TOLERANCE.get(variable, 1.5) * _NOISE_FLOOR_SCALE)
+    return math.sqrt(
+        (n * noise * noise + _PRIOR_SAMPLES * prior * prior) / (n + _PRIOR_SAMPLES)
+    )
 
 
 def base_weight(
@@ -201,14 +238,18 @@ def base_weight(
     provider_kind: str,
     horizon_h: float,
     now: datetime | None = None,
+    variable: str | None = None,
 ) -> float:
-    """Static confidence: from learned rmse when available, else kind baseline."""
-    now = now or datetime.now(timezone.utc)
-    if stat is None or stat.samples < 3:
-        return _KIND_BASE_WEIGHT.get(provider_kind, 1.0)
-    age_h = (now - stat.updated_at).total_seconds() / 3600.0
-    staleness = np.exp(-age_h / (8 * 24))  # learned stats decay over ~8 days
-    return _inverse_variance_weight(stat.rmse, stat.samples) * staleness
+    """Inverse-variance weight, in units of the variable tolerance.
+
+    (tolerance / sigma)^2: 1.0 for an unlearned model, 4.0 for a station,
+    more for a provider that learned a small error. Dimensionless, so the
+    breakdown shares read the same for every variable.
+    """
+    variable = variable or (stat.variable if stat else "")
+    tol = _VARIABLE_TOLERANCE.get(variable, 1.5)
+    sigma = provider_sigma(stat, variable, provider_kind, now)
+    return (tol / sigma) ** 2
 
 
 @dataclass(frozen=True)
@@ -278,7 +319,7 @@ def _fuse_one(
         bucket = horizon_bucket(s.valid_at, s.issued_at)
         stat = stats.get((s.provider, s.cell_key, variable, bucket))
         kind = kinds.get(s.provider, "model")
-        w = base_weight(stat, kind, bucket, now)
+        w = base_weight(stat, kind, bucket, now, variable=variable)
         pairs.append((s.provider, s.value, w, bucket, s.cell_key))
 
     if not pairs:
@@ -365,16 +406,12 @@ def _fuse_one(
     #   sigma_instant: observed disagreement among providers right now.
     # The provider noise is the residual spread around its own bias
     # (sqrt(rmse^2 - bias^2)): the systematic part was already removed by the
-    # bias correction, so it must not count twice.
+    # bias correction, so it must not count twice. Same sigma as the weights.
     variances: list[float] = []
     for provider, _v, _w, bucket, pcell in pairs:
         stat = stats.get((provider, pcell, variable, bucket))
-        if stat and stat.samples >= 3:
-            noise = math.sqrt(max(stat.rmse * stat.rmse - stat.bias * stat.bias, 0.0))
-            noise = max(noise, 1e-6)
-        else:
-            noise = _KIND_PRIOR_RMSE.get(kinds.get(provider, "model"), 2.0)
-        variances.append(noise * noise)
+        sigma = provider_sigma(stat, variable, kinds.get(provider, "model"), now)
+        variances.append(sigma * sigma)
     sigma_learned = 1.0 / math.sqrt(sum(1.0 / v for v in variances))
     # Weighted mean absolute deviation ~ 0.8 * sigma for a normal distribution.
     sigma_instant = residual_spread / 0.8

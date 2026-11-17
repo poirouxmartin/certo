@@ -111,6 +111,21 @@ def _migrate_residuals_horizon_pk(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_direction_residuals(conn: sqlite3.Connection) -> None:
+    """Drop wind-direction residuals written before user_version 1.
+
+    They stored the observation as both predicted and observed (rmse 0), so
+    they would keep the direction weight frozen for a whole residual window.
+    New ones store the signed angular error against observed = 0.
+    """
+    if conn.execute("PRAGMA user_version").fetchone()[0] >= 1:
+        return
+    conn.execute(
+        "DELETE FROM residuals WHERE variable = 'wind_direction_10m' AND observed != 0"
+    )
+    conn.execute("PRAGMA user_version = 1")
+
+
 def _parse_dt(text: str) -> datetime:
     """Parse an ISO timestamp, normalizing naive values to UTC."""
     dt = datetime.fromisoformat(text)
@@ -139,6 +154,7 @@ class Storage:
         self._conn.execute("PRAGMA temp_store=MEMORY;")
         _migrate_residuals_horizon_pk(self._conn)
         self._conn.executescript(_SCHEMA)
+        _migrate_direction_residuals(self._conn)
         self._conn.commit()
 
     @contextmanager
@@ -361,7 +377,7 @@ class Storage:
     # ---- residuals ----
 
     def residual_bias_stats(
-        self, since: datetime
+        self, since: datetime, until: datetime | None = None
     ) -> list[tuple[str, str, str, float, int, float, float]]:
         """SQL-side aggregation of residual biases.
 
@@ -374,10 +390,12 @@ class Storage:
             "SELECT provider, cell_key, variable, horizon_h, COUNT(*), "
             "AVG(predicted - observed), "
             "AVG((predicted - observed) * (predicted - observed)) "
-            "FROM residuals WHERE valid_at >= ? "
+            "FROM residuals WHERE valid_at >= ? AND valid_at <= ? "
             "GROUP BY provider, cell_key, variable, horizon_h"
         )
-        return self.locked_execute(sql, (since.isoformat(),))
+        # '9999' sorts after every ISO timestamp: no upper bound.
+        upper = until.isoformat() if until is not None else "9999"
+        return self.locked_execute(sql, (since.isoformat(), upper))
 
     def load_stats_cache(self, fingerprint: str):
         """Persisted calibration stats for this exact residual fingerprint.
