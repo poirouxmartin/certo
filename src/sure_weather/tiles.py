@@ -205,6 +205,78 @@ def _cache_put(key: tuple, data: bytes | str) -> None:
         _tile_cache[key] = (time.time(), data)
 
 
+# ---- upstream budget ----
+# Open-Meteo bills a multi-location request per location (a tile is 64 or 256
+# points) against a free quota of ~600/min, 5 000/h and 10 000/day per server
+# IP. The per-IP route limit alone lets one map session burn the whole quota,
+# which then also breaks /weather. The map gets about half of it, globally.
+_BUDGET_WINDOWS: tuple[tuple[float, int], ...] = (
+    (60.0, 300),
+    (3600.0, 2500),
+    (86400.0, 5000),
+)
+_spent: list[tuple[float, int]] = []
+_budget_lock = threading.Lock()
+# Failed upstream calls are remembered briefly so a map retrying the same
+# tiles does not turn one outage into a burst; a 429 pauses every tile.
+_FAIL_TTL_S = 60.0
+_COOLDOWN_429_S = 300.0
+_failed: dict[tuple, float] = {}
+_cooldown_until = 0.0
+
+
+class UpstreamBudgetExceeded(Exception):
+    """The map's share of the Open-Meteo quota is used up for now."""
+
+
+def _spend(points: int) -> None:
+    now = time.time()
+    longest = max(w for w, _ in _BUDGET_WINDOWS)
+    with _budget_lock:
+        while _spent and now - _spent[0][0] >= longest:
+            _spent.pop(0)
+        for window, cap in _BUDGET_WINDOWS:
+            used = sum(p for t, p in _spent if now - t < window)
+            if used + points > cap:
+                raise UpstreamBudgetExceeded()
+        _spent.append((now, points))
+
+
+def _upstream_json(
+    key: tuple, url: str, params: list[tuple[str, str]], points: int
+):
+    """GET through the shared client, under the global budget.
+
+    Returns the decoded JSON, or None when upstream failed (now or in the
+    last minute). Raises UpstreamBudgetExceeded when the budget is spent.
+    """
+    global _cooldown_until
+    now = time.time()
+    with _budget_lock:
+        if now < _cooldown_until:
+            return None
+        failed_at = _failed.get(key)
+        if failed_at is not None and now - failed_at < _FAIL_TTL_S:
+            return None
+        _failed.pop(key, None)
+    _spend(points)
+    from .net import get_client
+
+    try:
+        r = get_client().get(url, params=params, timeout=30)
+        r.raise_for_status()
+        return r.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        with _budget_lock:
+            if len(_failed) > _CACHE_MAX:
+                _failed.clear()
+            _failed[key] = time.time()
+            resp = getattr(exc, "response", None)
+            if resp is not None and resp.status_code == 429:
+                _cooldown_until = time.time() + _COOLDOWN_429_S
+        return None
+
+
 _CURRENT_VARS = "temperature_2m,precipitation,uv_index,relative_humidity_2m,cloud_cover,pressure_msl"
 
 
@@ -241,14 +313,7 @@ def wind_grid(
             params.append(("latitude", f"{la:.4f}"))
             params.append(("longitude", f"{lo:.4f}"))
     params.append(("current", "wind_speed_10m,wind_direction_10m"))
-    try:
-        from .net import get_client
-
-        r = get_client().get(f"{base_url}/forecast", params=params, timeout=30)
-        r.raise_for_status()
-        samples = r.json()
-    except (httpx.HTTPError, ValueError):
-        return None
+    samples = _upstream_json(key, f"{base_url}/forecast", params, n * n)
     if not isinstance(samples, list):
         return None
     points = []
@@ -353,7 +418,9 @@ def render_tile(
     base_url: str = "https://api.open-meteo.com/v1",
     user_agent: str = "sure-weather/0.1",
 ) -> bytes | None:
-    """Render a 256x256 PNG overlay tile for `layer` in ('temp', 'precip').
+    """Render a 256x256 PNG overlay tile (None when upstream failed).
+
+    Raises UpstreamBudgetExceeded when the map's quota share is spent.
 
     `hour_offset` > 0 renders the model's precipitation that many hours from
     now: the "future frames" that extend the observed radar timeline.
@@ -364,22 +431,9 @@ def render_tile(
     cached = _cache_get(key)
     if cached is not None:
         return cached
-    try:
-        from .net import get_client
-
-        params, _ = _build_request_params(z, x, y, hour_offset=hour_offset)
-        r = get_client().get(
-            f"{base_url}/forecast",
-            params=params,
-            timeout=30,
-        )
-        r.raise_for_status()
-    except httpx.HTTPError:
-        return None
-    try:
-        samples = r.json()
-    except ValueError:
-        return None
+    params, _ = _build_request_params(z, x, y, hour_offset=hour_offset)
+    n = _samples_for_zoom(z)
+    samples = _upstream_json(key, f"{base_url}/forecast", params, n * n)
     if not isinstance(samples, list):
         return None
     grid = _sample_to_grid(layer, samples, hour_offset=hour_offset, z=z)
@@ -397,7 +451,6 @@ def render_tile(
         overlay = pressure_overlay(grid)
     else:
         overlay = temperature_overlay(grid)
-    n = _samples_for_zoom(z)
     upscale = _TILE_SIZE // n
     pixels = np.repeat(np.repeat(overlay, upscale, axis=0), upscale, axis=1)
     data = encode_png_rgba(pixels)

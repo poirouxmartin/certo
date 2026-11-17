@@ -77,6 +77,19 @@ def cmd_observe(args: argparse.Namespace) -> None:
     print(f"inserted {total} observations")
 
 
+def cmd_purge(args: argparse.Namespace) -> None:
+    """Delete rows the calibration can no longer use, optionally VACUUM."""
+    config = load_config()
+    storage = Storage(config.db_path)
+    counts = storage.purge(config.residual_window_days)
+    for name, n in counts.items():
+        print(f"{name}: -{n}")
+    if args.vacuum:
+        print("vacuuming...")
+        storage.vacuum()
+    storage.close()
+
+
 def cmd_calibrate(args: argparse.Namespace) -> None:
     """Match stored forecasts against stored observations and record residuals."""
     config = load_config()
@@ -324,6 +337,17 @@ def main() -> None:
         help="train/validate split ratio (default 0.7)",
     )
     p_verify.set_defaults(func=cmd_verify)
+
+    p_purge = sub.add_parser(
+        "purge",
+        help="apply the retention policy (drop data older than the residual window)",
+    )
+    p_purge.add_argument(
+        "--vacuum",
+        action="store_true",
+        help="then rewrite the file (slow, run offline once on an old database)",
+    )
+    p_purge.set_defaults(func=cmd_purge)
 
     p_backfill = sub.add_parser(
         "backfill",

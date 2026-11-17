@@ -22,9 +22,9 @@ from pydantic import BaseModel
 
 from .config import load_config
 from .net import get_client
-from .service import WeatherService
+from .service import CellBudgetExceeded, WeatherService
 from .storage import Storage
-from .tiles import render_tile, wind_grid as render_wind_grid
+from .tiles import UpstreamBudgetExceeded, render_tile, wind_grid as render_wind_grid
 
 app = FastAPI(title="Certo", version="0.1.0")
 app.add_middleware(GZipMiddleware, minimum_size=1024)
@@ -112,9 +112,21 @@ _RATE_LOCK = threading.Lock()
 _GEOCODE_CACHE: dict[tuple[str, int], tuple[float, list]] = {}
 
 
+# Forecast routes (/weather, /now, /widget.svg) share one bucket per IP. The
+# app polls a partial forecast every 20 s and a search fires one request, so
+# 60/min leaves a normal session far below the cap.
+_FORECAST_LIMIT = 60
+_RATE_BUCKETS_MAX = 10_000
+
+
 def _rate_limit(key: str, limit: int = 30, window_s: float = 60.0) -> None:
     now = time.time()
     with _RATE_LOCK:
+        if len(_RATE_BUCKETS) > _RATE_BUCKETS_MAX:
+            # One key per IP and route, never removed otherwise: drop the
+            # idle ones (last hit older than any window we use, 5 min).
+            for k in [k for k, v in _RATE_BUCKETS.items() if not v or now - v[-1] > 300]:
+                del _RATE_BUCKETS[k]
         hits = [t for t in _RATE_BUCKETS.get(key, []) if now - t < window_s]
         if len(hits) >= limit:
             raise HTTPException(status_code=429, detail="rate limited")
@@ -172,13 +184,26 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+def _forecast(lat: float, lon: float, hours: int) -> dict:
+    try:
+        return _service.forecast(lat, lon, hours=hours)
+    except CellBudgetExceeded:
+        raise HTTPException(
+            status_code=429,
+            detail="too many new places right now",
+            headers={"Retry-After": "600"},
+        )
+
+
 @app.get("/weather")
 def weather(
+    request: Request,
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
     hours: int = Query(48, ge=1, le=168),
 ) -> dict:
-    return _service.forecast(lat, lon, hours=hours)
+    _rate_limit_by_ip(request, "forecast", limit=_FORECAST_LIMIT)
+    return _forecast(lat, lon, hours)
 
 
 @app.get("/geocode")
@@ -286,7 +311,12 @@ def tile(
     if not (0 <= x < n and 0 <= y < n):
         raise HTTPException(status_code=404, detail="tile out of range")
     _rate_limit_by_ip(request, "tile", limit=120, window_s=60.0)
-    data = render_tile(layer, z, x, y, hour_offset=h)
+    try:
+        data = render_tile(layer, z, x, y, hour_offset=h)
+    except UpstreamBudgetExceeded:
+        raise HTTPException(
+            status_code=503, detail="map budget spent", headers={"Retry-After": "60"}
+        )
     if data is None:
         raise HTTPException(status_code=502, detail="tile upstream unavailable")
     return Response(
@@ -379,7 +409,7 @@ def _sky_key(row: dict, hour: int, sun: dict | None = None) -> str:
 
 def _now_summary(lat: float, lon: float, hours: int = 24) -> dict:
     """Compact now+day summary for widgets, built on the cached forecast."""
-    data = _service.forecast(lat, lon, hours=hours)
+    data = _forecast(lat, lon, hours)
     by_time: dict[str, dict] = {}
     for item in data["forecast"]:
         by_time.setdefault(item["valid_at"], {})[item["variable"]] = item
@@ -437,7 +467,12 @@ def wind_grid_endpoint(
     _rate_limit_by_ip(request, "wind-grid", limit=60)
     if lat_s >= lat_n or lon_e <= lon_w:
         raise HTTPException(status_code=422, detail="invalid bounds")
-    points = render_wind_grid(lat_n, lon_w, lat_s, lon_e, n)
+    try:
+        points = render_wind_grid(lat_n, lon_w, lat_s, lon_e, n)
+    except UpstreamBudgetExceeded:
+        raise HTTPException(
+            status_code=503, detail="map budget spent", headers={"Retry-After": "60"}
+        )
     if points is None:
         raise HTTPException(status_code=502, detail="wind upstream unavailable")
     return {"points": points}
@@ -450,7 +485,8 @@ def push_key() -> dict:
 
 
 @app.post("/push/subscribe")
-def push_subscribe(sub: PushSubscription) -> dict:
+def push_subscribe(request: Request, sub: PushSubscription) -> dict:
+    _rate_limit_by_ip(request, "push-subscribe", limit=10)
     if not sub.endpoint or not sub.keys.get("p256dh") or not sub.keys.get("auth"):
         raise HTTPException(status_code=422, detail="invalid subscription")
     _validate_push_endpoint(sub.endpoint)
@@ -516,13 +552,16 @@ def push_test(
             )
             sent += 1
         except WebPushException as exc:
-            if exc.response and exc.response.status_code in (404, 410):
+            # `is not None`: an error Response is falsy (bool() returns .ok),
+            # so a plain truth test never removed dead subscriptions.
+            if exc.response is not None and exc.response.status_code in (404, 410):
                 _storage.remove_push_subscription(s["endpoint"])
     return {"sent": sent}
 
 
 @app.get("/now")
 def now_endpoint(
+    request: Request,
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
 ) -> dict:
@@ -532,6 +571,7 @@ def now_endpoint(
     native home-screen widgets). Reuses the forecast TTL cache, so polling
     every few minutes costs nothing.
     """
+    _rate_limit_by_ip(request, "forecast", limit=_FORECAST_LIMIT)
     return _now_summary(lat, lon)
 
 
@@ -547,11 +587,13 @@ _SKY_ICONS = {"day": "☀️", "night": "🌙", "rain": "🌧", "storm": "⛈", 
 
 @app.get("/widget.svg")
 def widget_svg(
+    request: Request,
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
     name: str = Query(""),
 ) -> Response:
     """Rendered SVG weather card for widget tools that accept images."""
+    _rate_limit_by_ip(request, "forecast", limit=_FORECAST_LIMIT)
     s = _now_summary(lat, lon)
     top, bottom = _SKY_COLORS.get(s["sky"], _SKY_COLORS["day"])
     icon = _SKY_ICONS.get(s["sky"], "☀️")
