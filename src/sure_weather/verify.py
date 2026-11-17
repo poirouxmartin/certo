@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
-from .calibration import learn_stats
+from .calibration import build_stats
 from .config import Config
-from .fusion import _VARIABLE_TOLERANCE, fuse, spatial_stats
-from .models import ALL_VARIABLES, OBSERVABLE_VARIABLES
+from .fusion import _VARIABLE_TOLERANCE, fuse, horizon_bucket
+from .models import ALL_VARIABLES, OBSERVABLE_VARIABLES, ForecastSample
 from .storage import Storage
 
 # Same ground-truth priority as calibration (station > reanalysis):
@@ -38,40 +38,39 @@ BANDS = [
 ]
 
 
-def verify(
+def is_hit(variable: str, value: float, truth: float) -> bool:
+    """Error within tolerance; directions use the shortest angle."""
+    tolerance = _VARIABLE_TOLERANCE.get(variable, 1.5)
+    if variable == "wind_direction_10m":
+        err = abs((value - truth + 180.0) % 360.0 - 180.0)
+    else:
+        err = abs(value - truth)
+    return err <= tolerance
+
+
+def replay(
     storage: Storage,
     config: Config,
     cell_key: str,
     split_ratio: float = 0.7,
     now: datetime | None = None,
-) -> dict:
-    """Replay fusion on the residual window and measure empirical hit rates.
+) -> list[tuple[str, float, float, bool, float]]:
+    """Score past forecasts the way production serves them.
 
-    Confidence is validated like a probabilistic forecast: for each past valid
-    time, fuse the stored analysis values, compare the consensus to the ground
-    truth (era5), and bucket results by stated confidence. A reliable system
-    has empirical hit rate ~ stated confidence in every band.
-
-    Out-of-sample: stats are learned from the oldest `split_ratio` of the
-    window, validation runs on the newest part. This avoids inflating the
-    result with the very data the stats were trained on.
+    Stats are learned from the oldest `split_ratio` of the residual window
+    with the production pipeline (build_stats: SQL aggregation, spatial
+    interpolation, horizon priors); validation runs on the newest part, so
+    the result is out-of-sample. For each horizon bucket, the latest issue
+    of each provider at each valid time is fused, like the served run.
+    Analysis rows (issued == valid) are truth proxies, not forecasts, and
+    are left out. Returns (variable, confidence, hit, calibrated, bucket).
     """
     now = now or datetime.now(timezone.utc)
     since = now - timedelta(days=config.residual_window_days)
     cutoff = since + (now - since) * split_ratio
-
-    # Train on residuals before the cutoff.
-    residuals = storage.residuals_window(None, None, since, cutoff)
-    stats = {
-        (s.provider, s.cell_key, s.variable, s.horizon_h): s
-        for s in learn_stats(residuals)
-    }
-    cells = storage.get_cells()
-    if cells:
-        stats = spatial_stats(stats, cells)
+    stats = build_stats(storage, since, cutoff, now=now)
     kinds = {p.name: p.kind for p in storage.get_providers()}
 
-    # Validation set: analysis forecasts in the newest part of the window.
     forecasts = storage.forecasts_in_window(
         [cell_key], list(ALL_VARIABLES), cutoff, now
     )
@@ -80,22 +79,49 @@ def verify(
     )
     obs_index = _best_truth_index(observations, kinds)
 
-    # Fuse all validation forecasts at once; the fusion groups per (var, valid_at).
-    results = fuse(forecasts, stats, kinds, config, now)
+    latest: dict[tuple[float, str, str, datetime], ForecastSample] = {}
+    for f in forecasts:
+        if f.issued_at >= f.valid_at:
+            continue
+        key = (horizon_bucket(f.valid_at, f.issued_at), f.provider, f.variable, f.valid_at)
+        if key not in latest or f.issued_at > latest[key].issued_at:
+            latest[key] = f
+    by_bucket: dict[float, list[ForecastSample]] = defaultdict(list)
+    for key, f in latest.items():
+        by_bucket[key[0]].append(f)
 
+    scored: list[tuple[str, float, float, bool, float]] = []
+    for bucket, samples in sorted(by_bucket.items()):
+        for r in fuse(samples, stats, kinds, config, now):
+            rounded = r.valid_at.replace(minute=0, second=0, microsecond=0)
+            truth = obs_index.get((r.variable, rounded))
+            if truth is None:
+                continue
+            hit = 1.0 if is_hit(r.variable, r.consensus, truth) else 0.0
+            scored.append((r.variable, r.confidence, hit, r.calibrated, bucket))
+    return scored
+
+
+def verify(
+    storage: Storage,
+    config: Config,
+    cell_key: str,
+    split_ratio: float = 0.7,
+    now: datetime | None = None,
+) -> dict:
+    """Reliability table: empirical hit rate per stated-confidence band.
+
+    A reliable system has empirical hit rate ~ stated confidence in every
+    band. See replay() for how the past is scored.
+    """
     hits: dict[tuple[str, int], list[tuple[float, float]]] = defaultdict(list)
     calibrated_flags: dict[tuple[str, int], bool] = {}
-    for r in results:
-        rounded = r.valid_at.replace(minute=0, second=0, microsecond=0)
-        obs = obs_index.get((r.variable, rounded))
-        if obs is None:
-            continue
-        tolerance = _VARIABLE_TOLERANCE.get(r.variable, 1.5)
-        hit = abs(r.consensus - obs) <= tolerance
-        band = _band_index(r.confidence)
-        hits[(r.variable, band)].append((r.confidence, 1.0 if hit else 0.0))
-        calibrated_flags[(r.variable, band)] = r.calibrated
-
+    for variable, confidence, hit, calibrated, _bucket in replay(
+        storage, config, cell_key, split_ratio, now
+    ):
+        band = _band_index(confidence)
+        hits[(variable, band)].append((confidence, hit))
+        calibrated_flags[(variable, band)] = calibrated
     return _build_report(hits, calibrated_flags)
 
 
@@ -141,39 +167,11 @@ def report_by_variable(
     now: datetime | None = None,
 ) -> dict:
     """Reliability per variable, pooling all confidence bands."""
-    now = now or datetime.now(timezone.utc)
-    since = now - timedelta(days=config.residual_window_days)
-    cutoff = since + (now - since) * split_ratio
-
-    residuals = storage.residuals_window(None, None, since, cutoff)
-    stats = {
-        (s.provider, s.cell_key, s.variable, s.horizon_h): s
-        for s in learn_stats(residuals)
-    }
-    cells = storage.get_cells()
-    if cells:
-        stats = spatial_stats(stats, cells)
-    kinds = {p.name: p.kind for p in storage.get_providers()}
-
-    forecasts = storage.forecasts_in_window(
-        [cell_key], list(ALL_VARIABLES), cutoff, now
-    )
-    observations = storage.observations_in_window(
-        [cell_key], list(OBSERVABLE_VARIABLES), cutoff, now
-    )
-    obs_index = _best_truth_index(observations, kinds)
-
-    results = fuse(forecasts, stats, kinds, config, now)
-
     per_var: dict[str, list[tuple[float, float]]] = defaultdict(list)
-    for r in results:
-        rounded = r.valid_at.replace(minute=0, second=0, microsecond=0)
-        obs = obs_index.get((r.variable, rounded))
-        if obs is None:
-            continue
-        tolerance = _VARIABLE_TOLERANCE.get(r.variable, 1.5)
-        hit = abs(r.consensus - obs) <= tolerance
-        per_var[r.variable].append((r.confidence, 1.0 if hit else 0.0))
+    for variable, confidence, hit, _cal, _bucket in replay(
+        storage, config, cell_key, split_ratio, now
+    ):
+        per_var[variable].append((confidence, hit))
 
     out: dict[str, object] = {}
     for var, bucket in sorted(per_var.items()):
