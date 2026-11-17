@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.6.5 (2026-11-17)
+
+### App
+
+- The service worker installs again and the pages run under the strict content policy (no inline script left), so the web app works offline and keeps its theme.
+- The map keeps its view, the radar retries once instead of piling up retries, and the share of "sure" hours only counts calibrated values.
+- The in-app updater reports a failed download instead of crashing the app.
+
+### Widget
+
+- Hours are read in the place's own time zone, not the phone's.
+
+### Forecast
+
+- Wind direction is now calibrated (350° against 10° counts as 20° off), and models and stations are weighted on one scale, with a noise floor per variable.
+- The phone-side learning forgets old data without shrinking the learned error.
+
+### Server
+
+- The database is pruned on a schedule and vacuumed (`sure-weather purge --vacuum`); forecast endpoints share a per-IP limit, new cells per hour are capped, and map tiles have an upstream budget.
+
 ## 1.6.4 (2026-11-15)
 
 ### App
