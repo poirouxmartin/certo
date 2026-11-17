@@ -566,6 +566,7 @@ public class WeatherWidget extends AppWidgetProvider {
         }
         if (body == null) throw new java.io.IOException("forecast http error");
         JSONObject root = new JSONObject(body);
+        int utcOffsetSec = root.optInt("utc_offset_seconds", java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000);
         JSONObject cur = root.getJSONObject("current");
         // current.precipitation covers the preceding 15 min: x4 for mm/h.
         double curMm = cur.has("precipitation") ? cur.optDouble("precipitation", Double.NaN) * 4.0 : Double.NaN;
@@ -588,16 +589,15 @@ public class WeatherWidget extends AppWidgetProvider {
                 }
                 if (mt != null && mp != null) {
                     long nowMs = System.currentTimeMillis();
-                    // timezone=auto returns location-local ISO (no suffix):
-                    // parse/display in device tz (exact when both match, the
-                    // widget's case).
-                    SimpleDateFormat inFmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US);
+                    // timezone=auto returns place-local ISO (no suffix): times are
+                    // parsed in the place's zone from utc_offset_seconds, not the phone's.
+                    SimpleDateFormat inFmt = placeFormat("yyyy-MM-dd'T'HH:mm", utcOffsetSec);
                     for (int i = 0; i < Math.min(mt.length(), 48); i++) {
                         try {
                             long qt = inFmt.parse(mt.optString(i, "")).getTime();
                             if (qt < nowMs - 15 * 60 * 1000) continue;
                             if (mp.optDouble(i, 0) > 0.15) {
-                                minStart = hhmm(qt);
+                                minStart = placeFormat("HH:mm", utcOffsetSec).format(new java.util.Date(qt));
                                 break;
                             }
                         } catch (Exception ignored) {}
@@ -618,7 +618,7 @@ public class WeatherWidget extends AppWidgetProvider {
             JSONArray clouds = hourly.optJSONArray("cloud_cover");
             JSONArray winds = hourly.optJSONArray("wind_speed_10m");
             JSONArray wdirs = hourly.optJSONArray("wind_direction_10m");
-            SimpleDateFormat hourFmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US);
+            SimpleDateFormat hourFmt = placeFormat("yyyy-MM-dd'T'HH:mm", utcOffsetSec);
             String curTime = cur.optString("time", "");
             String nowPrefix = curTime.substring(0, Math.min(13, curTime.length()));
             if (times != null) {
@@ -799,6 +799,18 @@ public class WeatherWidget extends AppWidgetProvider {
 
     static String hhmm(long ms) {
         return new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(ms));
+    }
+
+    /** Formats/parses in the place's zone: Open-Meteo timezone=auto gives place-local
+     * ISO times with no offset, so the phone's zone would shift them by the time-zone gap. */
+    static SimpleDateFormat placeFormat(String pattern, int utcOffsetSec) {
+        SimpleDateFormat f = new SimpleDateFormat(pattern, Locale.US);
+        f.setTimeZone(new java.util.SimpleTimeZone(utcOffsetSec * 1000, "place"));
+        return f;
+    }
+
+    static long parsePlaceTime(String isoLocal, int utcOffsetSec) throws java.text.ParseException {
+        return placeFormat("yyyy-MM-dd'T'HH:mm", utcOffsetSec).parse(isoLocal.substring(0, 16)).getTime();
     }
 
     /** 512x512 OSM base (2x2 z11 tiles around the place), cached as PNG for 7
