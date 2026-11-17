@@ -58,7 +58,12 @@ public class AppUpdaterPlugin extends Plugin {
             call.reject("Source de mise à jour refusée", "BAD_URL");
             return;
         }
-        new Thread(() -> download(call, url, expectedVersion)).start();
+        // Bare thread: an uncaught runtime error (getUriForFile, startActivity)
+        // would kill the process and leave the PluginCall pending forever.
+        new Thread(() -> {
+            try { download(call, url, expectedVersion); }
+            catch (Exception e) { call.reject("Mise à jour impossible : " + e.getMessage(), "UPDATE_FAILED"); }
+        }).start();
     }
 
     private void download(PluginCall call, String url, String expectedVersion) {
@@ -89,7 +94,7 @@ public class AppUpdaterPlugin extends Plugin {
             } finally {
                 conn.disconnect();
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             apk.delete();
             call.reject("Téléchargement impossible : " + e.getMessage(), "DOWNLOAD_FAILED");
             return;
