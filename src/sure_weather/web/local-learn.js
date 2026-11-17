@@ -101,11 +101,23 @@ window.SureLearn = (() => {
     return d > 180 ? 360 - d : d;
   }
 
+  /* Exponential forgetting at the cap: n and m2 shrink by the SAME factor,
+     so rmse = sqrt(m2/n) is unchanged by the step. Shrinking only m2 (0.98)
+     while n lost 1 drove rmse to ~0.32x the true error at equilibrium,
+     inflating weights and confidence. */
+  function forget(st) {
+    if (st.n >= MAX_N) {
+      const f = (MAX_N - 1) / st.n;
+      st.m2 *= f;
+      st.n *= f;
+    }
+  }
+
   function ingest(s, model, variable, hBucket, cell, err) {
     const keys = [`${model}|${variable}|${hBucket}|${cell}`, `${model}|${variable}|${hBucket}|*`];
     for (const k of keys) {
       const st = s.stats[k] || (s.stats[k] = { n: 0, bias: 0, m2: 0 });
-      if (st.n >= MAX_N) { st.m2 *= 0.98; st.n = MAX_N - 1; } // slow forgetting
+      forget(st);
       st.n += 1;
       const delta = err - st.bias;
       st.bias += delta / st.n;
@@ -192,7 +204,7 @@ window.SureLearn = (() => {
   function ingestDir(s, model, variable, hBucket, cell, err) {
     for (const k of [`${model}|${variable}|${hBucket}|${cell}`, `${model}|${variable}|${hBucket}|*`]) {
       const st = s.stats[k] || (s.stats[k] = { n: 0, bias: 0, m2: 0 });
-      if (st.n >= MAX_N) { st.m2 *= 0.98; st.n = MAX_N - 1; }
+      forget(st);
       st.n += 1;
       st.m2 += err * err; // bias stays 0
     }
@@ -261,5 +273,9 @@ window.SureLearn = (() => {
     return { pairs: Object.keys(s.preds).length, stats: Object.keys(s.stats).length };
   }
 
-  return { record, learnTruth, getStat, weightOf, shouldLearn, deepAnalyze, statsCount, MIN_N };
+  return {
+    record, learnTruth, getStat, weightOf, shouldLearn, deepAnalyze, statsCount, MIN_N,
+    // Internals exposed for tests/local-learn.test.js (node --test).
+    _ingest: ingest, _ingestDir: ingestDir, _rmseOf: rmseOf, MAX_N,
+  };
 })();
