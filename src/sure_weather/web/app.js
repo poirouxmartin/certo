@@ -1255,17 +1255,19 @@ function clientSummary(fc) {
   for (const item of fc) {
     for (const [lo, hi, label] of bands) {
       if (lo === 0 ? item.horizon_h <= hi : item.horizon_h > lo && item.horizon_h <= hi) {
-        (horizons[label] = horizons[label] || []).push(item.confidence);
+        (horizons[label] = horizons[label] || []).push(item);
         break;
       }
     }
   }
   const out = { horizons: {} };
-  for (const [label, confs] of Object.entries(horizons)) {
+  for (const [label, items] of Object.entries(horizons)) {
     out.horizons[label] = {
-      avg_confidence: confs.reduce((a, b) => a + b, 0) / confs.length,
-      sure_share: confs.filter((c) => c >= 0.98).length / confs.length,
-      n: confs.length,
+      avg_confidence: items.reduce((a, b) => a + b.confidence, 0) / items.length,
+      // Server parity: "sure" needs calibration, not just a high number
+      // (the uncalibrated local mode used to show the check mark).
+      sure_share: items.filter((i) => (i.sure ?? (i.calibrated && i.confidence >= 0.98)) === true).length / items.length,
+      n: items.length,
     };
   }
   return out;
@@ -2309,6 +2311,7 @@ function setFutureFrames(future) {
   showRadarFrame(Math.min(radarIdx, radarFrames.length - 1));
 }
 
+let radarRetryTimer = null;
 async function loadRadar() {
   // render() calls us on every forecast; other layers own the status line.
   if (mapLayer !== "radar") return;
@@ -2352,8 +2355,10 @@ async function loadRadar() {
     }, 10 * 60 * 1000);
   } catch (e) {
     status.textContent = tr("radar_err");
-    // Transient upstream failures retry on their own.
-    setTimeout(() => {
+    // Transient upstream failures retry on their own: one pending retry at
+    // most (each failure and each render() used to add another timer).
+    clearTimeout(radarRetryTimer);
+    radarRetryTimer = setTimeout(() => {
       if (map) loadRadar();
     }, 30 * 1000);
   }
@@ -2632,9 +2637,16 @@ async function onMapClick(e) {
   await loadForecast();
 }
 
+let mapCenteredOn = "";
 function centerMapOn(lat, lon, name) {
   if (!map) return;
-  map.setView([lat, lon], 10);
+  // Recenter only when the place changes: render() also runs for the
+  // partial refreshes (every 20 s) and kept undoing the user's pan and zoom.
+  const key = `${lat},${lon}`;
+  if (key !== mapCenteredOn) {
+    map.setView([lat, lon], 10);
+    mapCenteredOn = key;
+  }
   if (marker) {
     marker.setLatLng([lat, lon]);
     marker.setPopupContent(popupHtml(name, lat, lon));
@@ -2690,13 +2702,15 @@ function applyMapLayer() {
     if (lg) lg.hidden = true;
     return;
   }
+  // layer_precip already says "(modèle)" / "(model)": no second suffix.
+  const modelTag = LANG === "en" ? " (model)" : " (modèle)";
   const layerLabels = {
-    temp: `${tr("layer_temp")} (modèle)`,
-    precip: `${tr("layer_precip")} (modèle)`,
-    uv: `${tr("layer_uv")} (modèle)`,
-    humidity: `${tr("layer_humidity")} (modèle)`,
-    cloud: `${tr("layer_cloud")} (modèle)`,
-    pressure: `${tr("layer_pressure")} (modèle)`,
+    temp: tr("layer_temp") + modelTag,
+    precip: tr("layer_precip"),
+    uv: tr("layer_uv") + modelTag,
+    humidity: tr("layer_humidity") + modelTag,
+    cloud: tr("layer_cloud") + modelTag,
+    pressure: tr("layer_pressure") + modelTag,
   };
   const label = layerLabels[mapLayer] || mapLayer;
   el("radar-status").textContent = label;
@@ -2802,6 +2816,7 @@ async function refreshWindArrows() {
         return r.json();
       });
     if (seq !== windSeq || placeToken !== reqToken) return;
+    if (!el("wind-toggle").checked) return; // unchecked during the fetch
     if (windLayer) map.removeLayer(windLayer);
     windLayer = L.layerGroup();
     for (const p of points) {
