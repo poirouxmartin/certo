@@ -2175,10 +2175,6 @@ const NOWCAST_MIN_ZOOM = 8;
 // Each grid point counts as one Open-Meteo call (~10 000/day per IP, shared
 // behind mobile CGNAT).
 const NOWCAST_MIN_INTERVAL = 2 * 60 * 1000;
-const NOWCAST_RAMP = [
-  [0.1, [147, 197, 253]], [0.5, [59, 130, 246]], [2, [34, 197, 94]],
-  [5, [250, 204, 21]], [10, [249, 115, 22]], [20, [239, 68, 68]],
-];
 
 function initMap() {
   if (map) return;
@@ -2242,20 +2238,35 @@ function makeFrameLayer(f) {
       maxZoom: OVERLAY_MAX_ZOOM, noWrap: true, keepBuffer: 1,
     });
   } else {
-    const FrameLayer = L.TileLayer.extend({
-      getTileUrl(coords) {
-        const z = Math.max(5, Math.min(coords.z, 7));
-        const scale = Math.pow(2, coords.z - z);
-        return `${f.host}${f.path}/256/${z}/${Math.floor(coords.x / scale)}/${Math.floor(coords.y / scale)}/2/1_1_0.png`;
+    // RainViewer's free feed stops at z7 (z8+ is a "not supported" image).
+    // A 512 px z7 tile carries z8-equivalent detail (19 % of 2x2 blocks
+    // differ from the 256 px one), so the grid is 512 px and the url zoom is
+    // z-1. Smoothing is off (0_1_0) so painted pixels are exact palette
+    // entries; recolor() drops echoes under 15 dBZ (virga/clutter that DWD's
+    // 1 km composite shows dry) and repaints the rest with the legend ramp.
+    // noWrap stops the same frame from being tiled repeatedly across the map.
+    const FrameLayer = L.GridLayer.extend({
+      createTile(coords, done) {
+        const cv = document.createElement("canvas");
+        cv.width = cv.height = 512;
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          const ctx = cv.getContext("2d", { willReadFrequently: true });
+          ctx.drawImage(img, 0, 0);
+          const id = ctx.getImageData(0, 0, 512, 512);
+          SureRadar.recolor(id.data);
+          ctx.putImageData(id, 0, 0);
+          done(null, cv);
+        };
+        img.onerror = (err) => done(err, cv);
+        img.src = SureRadar.tileUrl(f.host, f.path, coords.z - 1, coords.x, coords.y);
+        return cv;
       },
     });
-    // L.TileLayer takes (url, options): passing the options first made
-    // them the url and dropped maxNativeZoom, so Leaflet asked for z8+
-    // tiles and each one drew its whole z7 parent: radar echoes shifted
-    // and broken at every tile seam. noWrap stops the same frame from being
-    // tiled repeatedly across the map.
-    layer = new FrameLayer("", {
-      opacity: 0, className: "radar-frame", maxNativeZoom: 7,
+    layer = new FrameLayer({
+      opacity: 0, className: "radar-frame", tileSize: 512,
+      minNativeZoom: 6, maxNativeZoom: 8,
       maxZoom: OVERLAY_MAX_ZOOM, noWrap: true, keepBuffer: 1,
     });
   }
@@ -2383,15 +2394,7 @@ function renderNowcast(grid, n) {
       const bot = grid[y1 * n + x0] * (1 - fx) + grid[y1 * n + x1] * fx;
       const v = top * (1 - fy) + bot * fy;
       if (!(v >= 0.1)) continue; // transparent: stays 0,0,0,0
-      let c = NOWCAST_RAMP[NOWCAST_RAMP.length - 1][1];
-      for (let i = 0; i < NOWCAST_RAMP.length - 1; i++) {
-        const [v0, c0] = NOWCAST_RAMP[i], [v1, c1] = NOWCAST_RAMP[i + 1];
-        if (v < v1) {
-          const k = (v - v0) / (v1 - v0);
-          c = [0, 1, 2].map((j) => Math.round(c0[j] + (c1[j] - c0[j]) * k));
-          break;
-        }
-      }
+      const c = SureRadar.rampColor(v);
       const o = (y * S + x) * 4;
       img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 153; // alpha 0.6
     }
@@ -2601,7 +2604,7 @@ function setRadarAttribution(on) {
 }
 
 function radarLegendHtml() {
-  // Same stops as NOWCAST_RAMP, spaced evenly (the ramp is roughly log).
+  // Same stops as SureRadar.RAMP, spaced evenly (the ramp is roughly log).
   const cols = ["#93C5FD", "#3B82F6", "#22C55E", "#FACC15", "#F97316", "#EF4444"];
   const grad = cols.map((c, i) => `${c} ${i * 20}%`).join(",");
   const tick = (label, pct) => `<span style="left:${pct}%">${label}</span>`;
