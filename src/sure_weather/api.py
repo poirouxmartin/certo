@@ -117,14 +117,19 @@ _GEOCODE_CACHE: dict[tuple[str, int], tuple[float, list]] = {}
 # 60/min leaves a normal session far below the cap.
 _FORECAST_LIMIT = 60
 _RATE_BUCKETS_MAX = 10_000
+_rate_pruned_at = 0.0
 
 
 def _rate_limit(key: str, limit: int = 30, window_s: float = 60.0) -> None:
     now = time.time()
     with _RATE_LOCK:
-        if len(_RATE_BUCKETS) > _RATE_BUCKETS_MAX:
+        global _rate_pruned_at
+        if len(_RATE_BUCKETS) > _RATE_BUCKETS_MAX and now - _rate_pruned_at > 60:
             # One key per IP and route, never removed otherwise: drop the
-            # idle ones (last hit older than any window we use, 5 min).
+            # idle ones (last hit older than any window we use, 5 min). At
+            # most once a minute, so a crowd of live keys cannot turn the
+            # sweep into per-request work.
+            _rate_pruned_at = now
             for k in [k for k, v in _RATE_BUCKETS.items() if not v or now - v[-1] > 300]:
                 del _RATE_BUCKETS[k]
         hits = [t for t in _RATE_BUCKETS.get(key, []) if now - t < window_s]

@@ -163,6 +163,7 @@ def test_push_subscribe_is_rate_limited(client, monkeypatch, tmp_path):
 def test_rate_buckets_are_pruned(monkeypatch):
     api._RATE_BUCKETS.clear()
     monkeypatch.setattr(api, "_RATE_BUCKETS_MAX", 3)
+    monkeypatch.setattr(api, "_rate_pruned_at", 0.0)
     for i in range(4):
         api._RATE_BUCKETS[f"old:{i}"] = [0.0]
     api._rate_limit("fresh", limit=5)
