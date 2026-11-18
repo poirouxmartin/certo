@@ -15,7 +15,8 @@ const VAR_LABELS_KEYS = {
   cloud_cover: "var_cloud",
   wind_speed_10m: "var_wind",
   wind_gusts_10m: "var_gust",
-  wind_direction_10m: "var_wind",
+  // Own label: the confidence card listed "Vent" twice (speed and direction).
+  wind_direction_10m: "var_wdir",
   uv_index: "var_uv",
   pressure_msl: "var_press",
   visibility: "var_vis",
@@ -23,6 +24,38 @@ const VAR_LABELS_KEYS = {
 
 function varLabel(v) {
   return tr(VAR_LABELS_KEYS[v] || v);
+}
+
+/* Line icons (24-unit grid, stroked with currentColor) so a row reads by
+   shape before words; colours match the meteogram tabs. */
+const ICON_PATHS = {
+  thermo: "M14 14.8V4a2 2 0 1 0-4 0v10.8a4 4 0 1 0 4 0z",
+  dew: "M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11zM9 15h6",
+  drop: "M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z",
+  umbrella: "M3 12a9 9 0 0 1 18 0zM12 12v7a2 2 0 0 1-4 0",
+  rainprob: "M7 16a4 4 0 1 1 1-7.9A5 5 0 0 1 17.6 9 3.5 3.5 0 0 1 17 16zM9 19v2M13 19v2",
+  cloud: "M7 18a5 5 0 1 1 1-9.9A6 6 0 0 1 19.5 10 4 4 0 0 1 18 18z",
+  wind: "M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8",
+  gust: "M3 7h9a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 17h6M14 19l3-3",
+  compass: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM15.5 8.5l-2 5-5 2 2-5z",
+  sun: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5",
+  gauge: "M4 18a8 8 0 1 1 16 0M12 18l4-6",
+  eye: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+};
+const VAR_ICONS = {
+  temperature_2m: ["thermo", "#14b8a6"], dew_point_2m: ["dew", "#0ea5e9"],
+  relative_humidity_2m: ["drop", "#38bdf8"], precipitation: ["umbrella", "#3b82f6"],
+  precipitation_probability: ["rainprob", "#6366f1"], cloud_cover: ["cloud", "#94a3b8"],
+  wind_speed_10m: ["wind", "#5b8cff"], wind_gusts_10m: ["gust", "#8b5cf6"],
+  wind_direction_10m: ["compass", "#5b8cff"], uv_index: ["sun", "#f59e0b"],
+  pressure_msl: ["gauge", "#64748b"], visibility: ["eye", "#64748b"],
+};
+function lineIcon(name, color, size = 18) {
+  return `<svg class="lic" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${color || "currentColor"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON_PATHS[name] || ""}"/></svg>`;
+}
+function varIcon(v, size) {
+  const [name, color] = VAR_ICONS[v] || ["gauge", "#64748b"];
+  return lineIcon(name, color, size);
 }
 
 const VAR_ORDER = [
@@ -1192,6 +1225,7 @@ function initLocalModeUI() {
   const sel = document.getElementById("map-layer");
   if (sel) {
     for (const opt of sel.options) opt.disabled = false;
+    syncLayerChips();
   }
   if (mapLayer && map) applyMapLayer();
 }
@@ -1359,16 +1393,21 @@ function render(data, hours = state.hours) {
   document.body.dataset.sky = wk.sky;
   const t = nowRow.temperature_2m;
   el("now-temp").textContent = t ? `${round(t.value)}°` : "—";
+  // Icon tiles instead of a dotted sentence: the label moves to the tooltip
+  // and the screen-reader text, the value stays.
+  const stat = (ic, val, label) =>
+    `<span class="stat" title="${escHtml(label)}"><span class="stat__ic">${ic}</span><b class="stat__val">${val}</b><span class="sr-only">${escHtml(label)}</span></span>`;
   const sub = [];
-  if (t) sub.push(`${tr("now_feels")} ${rangeText(t)}°`);
+  if (t) sub.push(stat(varIcon("temperature_2m"), `${rangeText(t)}°`, tr("now_feels")));
   if (nowRow.wind_speed_10m) {
     const wd = windDir(nowRow);
-    sub.push(`<span class="hour__windarrow" style="transform:rotate(${wd ? (wd.deg + 180) % 360 : 0}deg)">➤</span> ${kmh(nowRow.wind_speed_10m)}${wd ? ` (${wd.from})` : ""}`);
+    sub.push(stat(`<span class="hour__windarrow" style="transform:rotate(${wd ? (wd.deg + 180) % 360 : 0}deg)">➤</span>`,
+      `${kmh(nowRow.wind_speed_10m)}${wd ? ` ${wd.from}` : ""}`, varLabel("wind_speed_10m")));
   }
-  if (nowRow.relative_humidity_2m) sub.push(`💧 ${rangeText(nowRow.relative_humidity_2m, 0)}%`);
+  if (nowRow.relative_humidity_2m) sub.push(stat(varIcon("relative_humidity_2m"), `${rangeText(nowRow.relative_humidity_2m, 0)}%`, varLabel("relative_humidity_2m")));
   if (nowRow.precipitation_probability && nowRow.precipitation_probability.value > 0)
-    sub.push(`☔ ${round(nowRow.precipitation_probability.value, 0)}%`);
-  el("now-sub").innerHTML = sub.join(" · ");
+    sub.push(stat(varIcon("precipitation"), `${round(nowRow.precipitation_probability.value, 0)}%`, varLabel("precipitation_probability")));
+  el("now-sub").innerHTML = sub.join("");
 
   /* Timeline */
   window.__partialData = !!currentData?.partial;
@@ -1540,16 +1579,8 @@ function renderVerdict(times, byTime) {
   const rainHours = rows.filter(
     (h) => (h.row.precipitation_probability?.value ?? 0) >= 50 || (h.row.precipitation?.value ?? 0) > 0.3
   );
-  if (!rainHours.length) {
-    pills.push(`<span class="vpill vpill--ok"><span class="vpill__ic" aria-hidden="true">☀️</span>${tr("v_dry")}</span>`);
-  } else {
-    const first = rainHours[0];
-    const peak = Math.max(...rainHours.map((h) => h.row.precipitation_probability?.value ?? 0));
-    pills.push(
-      `<span class="vpill vpill--rain"><span class="vpill__ic" aria-hidden="true">☔</span>${tr(first.t === times[0] ? "v_rain_now" : "v_rain", { h: fmtTime(first.t) })}${peak >= 70 ? ` · ${tr("v_rain_prob", { p: Math.round(peak) })}` : ""}</span>`
-    );
-  }
   // Precise rain timing (15-min model consensus, standalone payload).
+  let precise = "";
   try {
     const rs = currentData?.rain?.start ? new Date(currentData.rain.start).getTime() : null;
     const re = currentData?.rain?.end ? new Date(currentData.rain.end).getTime() : null;
@@ -1558,9 +1589,21 @@ function renderVerdict(times, byTime) {
       const mins = Math.round((rs - nowMs) / 60e3);
       const when = mins < 60 ? tr("v_rain_in_min", { m: mins }) : tr("v_rain_in_h", { h: fmtTime(new Date(rs).toISOString()) });
       const until = re && re > rs ? ` → ${fmtTime(new Date(re).toISOString())}` : "";
-      pills.push(`<span class="vpill vpill--rain"><span class="vpill__ic" aria-hidden="true">🌧️</span>${when}${until}</span>`);
+      precise = `${when}${until}`;
     }
-  } catch { /* bonus pill */ }
+  } catch { /* bonus timing */ }
+  if (!rainHours.length && !precise) {
+    pills.push(`<span class="vpill vpill--ok"><span class="vpill__ic" aria-hidden="true">☀️</span>${tr("v_dry")}</span>`);
+  } else {
+    // One rain pill: the precise 15-min timing when known, else the hourly
+    // start (two pills "rain from 00:00" + "rain at 00:15" said it twice).
+    const peak = Math.max(0, ...rainHours.map((h) => h.row.precipitation_probability?.value ?? 0));
+    const first = rainHours[0];
+    const head = precise || tr(first.t === times[0] ? "v_rain_now" : "v_rain", { h: fmtTime(first.t) });
+    pills.push(
+      `<span class="vpill vpill--rain"><span class="vpill__ic" aria-hidden="true">☔</span>${head}${peak >= 70 ? ` · ${Math.round(peak)}${LANG === "en" ? "" : " "}%` : ""}</span>`
+    );
+  }
   // Temperature: max & min with hour of max.
   const temps = rows.map((h) => h.row.temperature_2m?.value).filter((v) => v !== null && v !== undefined);
   if (temps.length) {
@@ -1900,16 +1943,26 @@ function renderConfidence(fc) {
     const color = confColor(avg);
     const div = document.createElement("div");
     div.className = "var";
+    // Icon + label + bar, the bare number on the right. "Uncalibrated" is
+    // said once in the card badge (conf_avg_na), not repeated on 12 rows.
     div.innerHTML = `
-      <div class="var__head">
-        <span class="var__label">${varLabel(v)}</span>
-        <span class="var__value">${cal.length ? tr("conf_sure_share", { p: pct, s: Math.round(sureShare * 100) }) : `${pct}% · ${tr("conf_na")}`}</span>
-      </div>
-      <div class="var__track">
-        <div class="var__bar" style="width:${pct}%; background:${color}"></div>
+      <span class="var__ic">${varIcon(v)}</span>
+      <div class="var__main">
+        <div class="var__head">
+          <span class="var__label">${varLabel(v)}</span>
+          <span class="var__value">${cal.length ? tr("conf_sure_share", { p: pct, s: Math.round(sureShare * 100) }) : `${pct}%`}</span>
+        </div>
+        <div class="var__track">
+          <div class="var__bar" style="width:0; background:${color}" data-w="${pct}"></div>
+        </div>
       </div>`;
     wrap.appendChild(div);
   }
+  // Bars grow from 0 (CSS transition on width): two frames so the 0 width
+  // is painted first.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    wrap.querySelectorAll(".var__bar[data-w]").forEach((b) => { b.style.width = `${b.dataset.w}%`; });
+  }));
   if (overall.length) {
     const m = Math.round(overall.reduce((a, b) => a + b, 0) / overall.length);
     el("conf-overall").textContent = tr(anyCalibrated ? "conf_avg" : "conf_avg_na", { m });
@@ -1927,6 +1980,7 @@ function renderSources(data) {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td colspan="6" style="text-align:center;color:var(--ink-faint)">—</td>`;
     tb.appendChild(tr);
+    renderSpread([], NaN);
     return;
   }
   for (const r of bd) {
@@ -1948,6 +2002,43 @@ function renderSources(data) {
     crow.innerHTML = `<td>${escHtml(tr("consensus_row"))}</td><td></td><td></td><td>${escHtml(first.value)}°</td><td></td><td>100%</td>`;
     tb.appendChild(crow);
   }
+  renderSpread(bd, first ? Number(first.value) : NaN);
+}
+
+/* Sources at a glance: each model's corrected temperature as a dot on one
+   axis (area ~ weight), Certo's consensus as a vertical line. Dots are
+   jittered vertically by rank so close values stay distinguishable. */
+function renderSpread(bd, consensus) {
+  const fig = el("sources-spread");
+  const plot = el("spread-plot");
+  if (!fig || !plot) return;
+  const pts = bd
+    .map((r) => ({ name: String(r.provider), t: Number(r.corr), w: Number(r.weight) || 0 }))
+    .filter((p) => Number.isFinite(p.t));
+  if (pts.length < 2) { fig.hidden = true; return; }
+  fig.hidden = false;
+  const W = 300, H = 92, padX = 16;
+  const ts = pts.map((p) => p.t).concat(Number.isFinite(consensus) ? [consensus] : []);
+  let lo = Math.min(...ts), hi = Math.max(...ts);
+  if (hi - lo < 1) { lo -= 0.5; hi += 0.5; } // flat consensus: keep a readable scale
+  const x = (t) => padX + ((t - lo) / (hi - lo)) * (W - 2 * padX);
+  const wMax = Math.max(...pts.map((p) => p.w), 1e-9);
+  const dots = pts
+    .sort((a, b) => a.t - b.t)
+    .map((p, i) => {
+      const r = 4 + 5 * Math.sqrt(Math.max(0, p.w) / wMax);
+      const y = 46 + (i % 3 - 1) * 8;
+      return `<circle class="spread__dot" style="animation-delay:${i * 40}ms" cx="${x(p.t).toFixed(1)}" cy="${y}" r="${r.toFixed(1)}"><title>${escHtml(p.name)} · ${round(p.t, 1)}°</title></circle>`;
+    })
+    .join("");
+  const cx = Number.isFinite(consensus) ? x(consensus).toFixed(1) : null;
+  plot.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${escHtml(tr("spread_legend"))}">
+    <line x1="${padX}" y1="46" x2="${W - padX}" y2="46" class="spread__axis"/>
+    ${dots}
+    ${cx ? `<line x1="${cx}" y1="20" x2="${cx}" y2="72" class="spread__line"/><text x="${cx}" y="14" text-anchor="middle" class="spread__val">${round(consensus, 1)}°</text>` : ""}
+    <text x="${padX}" y="88" class="spread__tick">${round(lo, 1)}°</text>
+    <text x="${W - padX}" y="88" text-anchor="end" class="spread__tick">${round(hi, 1)}°</text>
+  </svg>`;
 }
 
 function renderTable(times, byTime) {
@@ -2743,7 +2834,32 @@ function applyMapLayer() {
 $("#map-layer").addEventListener("change", (e) => {
   mapLayer = e.target.value;
   applyMapLayer();
+  syncLayerChips();
 });
+
+/* Layer chips mirror the hidden <select>: a tap sets its value and fires
+   the same change event, so every existing code path stays the one used. */
+function syncLayerChips() {
+  const sel = el("map-layer");
+  document.querySelectorAll("#layer-chips .layer-chip").forEach((b) => {
+    const opt = [...sel.options].find((o) => o.value === b.dataset.layer);
+    b.hidden = !opt;
+    b.disabled = !!opt?.disabled;
+    const on = sel.value === b.dataset.layer;
+    b.classList.toggle("layer-chip--on", on);
+    b.setAttribute("aria-pressed", String(on));
+  });
+}
+el("layer-chips")?.addEventListener("click", (e) => {
+  const b = e.target.closest(".layer-chip");
+  if (!b || b.disabled) return;
+  const sel = el("map-layer");
+  if (sel.value === b.dataset.layer) return;
+  sel.value = b.dataset.layer;
+  sel.dispatchEvent(new Event("change"));
+  b.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+});
+syncLayerChips();
 
 /* On-device model overlay: sample the layer variable on a grid over the
    viewport, color it with the backend's LUTs, and pin it as an imageOverlay

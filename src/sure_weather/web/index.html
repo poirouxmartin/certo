@@ -58,7 +58,9 @@
         <label class="sr-only" for="search-input" data-i18n="search">Rechercher</label>
         <input class="search__input" id="search-input" type="search"
                data-i18n-ph="search_ph" placeholder="Ville, adresse, ou lat, lon…" />
-        <button class="btn btn--primary" type="submit" data-i18n="search">Rechercher</button>
+        <button class="btn btn--primary search__go" type="submit" data-i18n-title="search" title="Rechercher">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        </button>
       </form>
     </header>
 
@@ -158,10 +160,9 @@
       <!-- Radar & map -->
       <section class="card mapcard">
         <div class="card__head">
-          <h2 class="card__title"><span class="tab-ic" aria-hidden="true">🗺️</span><span data-i18n="map_title">Radar & carte</span></h2>
+          <h2 class="card__title" data-i18n-title="map_hint"><span class="tab-ic" aria-hidden="true">🗺️</span><span data-i18n="map_title">Radar & carte</span></h2>
           <span class="card__badge card__badge--muted" id="radar-status"></span>
         </div>
-        <p class="card__hint" data-i18n="map_hint">Précipitations en temps réel autour du point.</p>
         <div id="map"></div>
         <div class="map__controls">
           <button class="btn btn--ghost" id="radar-play" type="button" data-i18n="play">▶ Lecture</button>
@@ -169,8 +170,8 @@
             <span class="map__time" id="radar-time">—</span>
             <input type="range" id="radar-slider" min="0" max="1" value="1" disabled aria-label="Ligne de temps radar" data-i18n-aria="radar_slider" />
           </div>
-          <label class="map__layers"><span class="sr-only" data-i18n="map_title">Radar & carte</span>
-            <select id="map-layer" aria-label="Couche carte" data-i18n-aria="map_layer">
+          <label class="map__layers sr-only" aria-hidden="true"><span data-i18n="map_title">Radar & carte</span>
+            <select id="map-layer" tabindex="-1" aria-label="Couche carte" data-i18n-aria="map_layer">
               <option value="radar" data-i18n="layer_radar">Radar pluie (live)</option>
               <option value="precip" data-i18n="layer_precip">Précipitation (modèle)</option>
               <option value="temp" data-i18n="layer_temp">Température</option>
@@ -182,8 +183,21 @@
             </select>
           </label>
           <label class="map__wind" data-i18n-title="wind_arrows_title">
-            <input type="checkbox" id="wind-toggle" checked aria-label="Flèches de vent" data-i18n-aria="wind_arrows_title" /> <span aria-hidden="true">💨</span>
+            <input class="sr-only" type="checkbox" id="wind-toggle" checked aria-label="Flèches de vent" data-i18n-aria="wind_arrows_title" />
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/></svg>
           </label>
+        </div>
+        <!-- Layer picker: one tap per layer instead of a text dropdown; the
+             hidden <select> above stays the single source of truth. -->
+        <div class="layer-chips" id="layer-chips" role="group" data-i18n-aria="map_layer">
+          <button type="button" class="layer-chip" data-layer="radar"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-6"/></svg><span data-i18n="lc_radar">Radar</span></button>
+          <button type="button" class="layer-chip" data-layer="precip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 18 0zM12 12v7a2 2 0 0 1-4 0"/></svg><span data-i18n="lc_precip">Pluie</span></button>
+          <button type="button" class="layer-chip" data-layer="temp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 14.8V4a2 2 0 1 0-4 0v10.8a4 4 0 1 0 4 0z"/></svg><span data-i18n="lc_temp">Temp</span></button>
+          <button type="button" class="layer-chip" data-layer="uv"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></svg><span data-i18n="lc_uv">UV</span></button>
+          <button type="button" class="layer-chip" data-layer="humidity"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/></svg><span data-i18n="lc_humidity">Humid.</span></button>
+          <button type="button" class="layer-chip" data-layer="cloud"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a5 5 0 1 1 1-9.9A6 6 0 0 1 19.5 10 4 4 0 0 1 18 18z"/></svg><span data-i18n="lc_cloud">Nuages</span></button>
+          <button type="button" class="layer-chip" data-layer="pressure"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-6"/></svg><span data-i18n="lc_pressure">Pression</span></button>
+          <button type="button" class="layer-chip" data-layer="streets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14"/></svg><span data-i18n="lc_streets">Plan</span></button>
         </div>
         <div class="map-legend" id="map-legend" hidden></div>
       </section>
@@ -195,7 +209,6 @@
           <span class="card__badge card__badge--muted" id="conf-overall"></span>
           <button class="btn btn--ghost conf-info" id="conf-info" type="button" aria-haspopup="dialog" data-i18n-title="conf_more">?</button>
         </div>
-        <p class="card__hint" data-i18n="conf_hint">Probabilité calibrée.</p>
         <div class="vars" id="vars"></div>
       </section>
 
@@ -205,7 +218,12 @@
           <h2 class="card__title"><span class="tab-ic" aria-hidden="true">🔬</span><span data-i18n="sources_title">Détail des sources & calcul</span></h2>
           <span class="card__badge" id="sources-badge"></span>
         </div>
-        <p class="card__hint" data-i18n="sources_hint">Températures brutes par source à l'échéance la plus proche, biais corrigé, et moyenne pondérée calibrée (= notre prévision).</p>
+        <!-- One dot per model on a temperature axis, the line is Certo: the
+             agreement reads at a glance, the numbers live in the folded table. -->
+        <figure class="spread" id="sources-spread" hidden>
+          <div class="spread__plot" id="spread-plot"></div>
+          <figcaption class="spread__legend" data-i18n="spread_legend">1 point = 1 modèle · taille = poids · trait = Certo</figcaption>
+        </figure>
         <div class="deep">
           <button class="btn btn--ghost deep__btn" id="deep-btn" type="button">🔬 <span data-i18n="deep_btn">Analyse profonde</span></button>
           <span class="deep__status" id="deep-status"></span>
@@ -217,18 +235,25 @@
           </table>
           <p class="card__hint" data-i18n="deep_hint">Vérité = analyse des 14 derniers jours. Les biais appris corrigent les prévisions suivantes ; les poids suivent la fiabilité historique.</p>
         </div>
+        <details class="fold">
+          <summary><span data-i18n="sources_table">Tableau des sources</span><span class="chevron" aria-hidden="true">▾</span></summary>
         <div class="tablewrap">
           <table class="table" id="sources-table">
             <thead><tr><th data-i18n="th_src">Source</th><th data-i18n="th_raw">Brut</th><th data-i18n="th_bias">Biais</th><th data-i18n="th_corr">Corrigé</th><th data-i18n="th_weight">Poids</th><th data-i18n="th_share">Part</th></tr></thead>
             <tbody id="sources-body"></tbody>
           </table>
         </div>
+        </details>
       </section>
 
-      <!-- Hourly table -->
-      <section class="card">
-        <h2 class="card__title"><span class="tab-ic" aria-hidden="true">📊</span><span data-i18n="table_title">Détail horaire</span> <span class="card__badge card__badge--muted" data-i18n="tz_note">heure locale</span></h2>
-        <div class="tablewrap">
+      <!-- Hourly table: 10 columns overflow a phone, folded like the hourly cards -->
+      <details class="card hourscard" id="tablecard">
+        <summary>
+          <span class="tab-ic" aria-hidden="true">📊</span><span class="card__title" data-i18n="table_title">Détail horaire</span>
+          <span class="card__badge card__badge--muted" data-i18n="tz_note">heure locale</span>
+          <span class="chevron" aria-hidden="true">▾</span>
+        </summary>
+        <div class="tablewrap tablecard__wrap">
           <table class="table">
             <thead>
               <tr>
@@ -247,7 +272,7 @@
             <tbody id="table-body"></tbody>
           </table>
         </div>
-      </section>
+      </details>
     </main>
 
     <footer class="footer">

@@ -964,3 +964,86 @@ html[data-theme="dark"] .sk::after {
 .ask__input { width: 100%; height: 42px; font-size: 16px; margin: 4px 0 14px; }
 .ask__actions { display: flex; justify-content: flex-end; gap: 8px; }
 .tab-ic { margin-right: 4px; }
+
+/* ==========================================================================
+   UX pass 18/11/2026: icons over words, visuals over tables, light motion.
+   ========================================================================== */
+
+/* Search: icon button (label kept for screen readers via title/aria). */
+.search .search__go { width: 42px; padding: 0; display: grid; place-items: center; }
+
+/* Hero detail line: icon tiles instead of a dotted sentence. */
+.hero__sub { display: flex; flex-wrap: wrap; gap: 6px; }
+.stat {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px 5px 8px; border-radius: 999px;
+  background: var(--mg-night); color: var(--ink); font-size: 13px;
+}
+.stat__ic { display: inline-grid; place-items: center; width: 18px; height: 18px; color: var(--accent); }
+.stat__val { font-weight: 600; white-space: nowrap; }
+
+/* Map: wind arrows as an icon toggle, layers as icon chips. */
+.map__wind { width: 44px; height: 40px; padding: 0; justify-content: center; color: var(--ink-soft); transition: background .15s, color .15s; }
+.map__wind:has(input:checked) { background: var(--accent); border-color: var(--accent); color: #fff; }
+.map__wind:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.layer-chips {
+  display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; padding-bottom: 2px;
+  scroll-snap-type: x proximity; scrollbar-width: none;
+}
+.layer-chips::-webkit-scrollbar { display: none; }
+.layer-chip {
+  flex: none; scroll-snap-align: start;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-width: 60px; height: 54px; padding: 0 8px;
+  font: 600 11.5px var(--font); color: var(--ink-soft);
+  background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--r-md);
+  cursor: pointer; transition: background .15s, color .15s, transform .12s;
+}
+.layer-chip svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.layer-chip--on { background: var(--pill-bg); border-color: var(--pill-bg); color: var(--pill-ink); }
+.layer-chip:disabled { opacity: .45; cursor: default; }
+
+/* Confidence: icon + label + bar, number on the right. */
+.var { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 0 8px; }
+.var__ic { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--mg-night); }
+.var__main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.var__bar { transition: width .7s cubic-bezier(.22,1,.36,1); }
+.card__head + .vars { margin-top: 10px; }
+
+/* Sources: dot plot, table folded underneath. */
+.spread { margin: 6px 0 4px; }
+.spread svg { display: block; overflow: visible; }
+.spread__axis { stroke: var(--line-strong); stroke-width: 2; stroke-linecap: round; }
+.spread__dot { fill: #5b9be0; fill-opacity: .72; stroke: var(--dot-stroke); stroke-width: 1.2; transform-box: fill-box; transform-origin: center; animation: pop .45s cubic-bezier(.22,1,.36,1) both; }
+.spread__line { stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; }
+.spread__val { fill: var(--ink); font: 800 12px var(--font); }
+.spread__tick { fill: var(--ink-faint); font: 500 10px var(--font); }
+.spread__legend { text-align: center; font-size: 12px; color: var(--ink-faint); margin-top: 2px; }
+.fold { margin-top: 8px; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.fold summary {
+  list-style: none; display: flex; align-items: center; gap: 8px;
+  min-height: 44px; padding: 0 12px; cursor: pointer; font-weight: 600; font-size: 14px;
+}
+.fold summary::-webkit-details-marker { display: none; }
+.fold .chevron { margin-left: auto; color: var(--ink-soft); transition: transform .2s; }
+.fold[open] .chevron { transform: rotate(180deg); }
+.fold .tablewrap { margin: 0 8px 8px; }
+.tablecard__wrap { margin: 0 14px 12px; }
+
+/* Light motion: cards rise in on first paint, taps press in, the sky icon
+   breathes. All of it is off when the system asks for reduced motion. */
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes pop { from { opacity: 0; transform: scale(.3); } }
+@keyframes drift { 50% { transform: translateY(-3px); } }
+#content > * { animation: rise .45s cubic-bezier(.22,1,.36,1) both; }
+#content > :nth-child(2) { animation-delay: .05s; }
+#content > :nth-child(3) { animation-delay: .1s; }
+#content > :nth-child(4) { animation-delay: .15s; }
+#content > :nth-child(n+5) { animation-delay: .2s; }
+.hero__sky svg { animation: drift 5s ease-in-out infinite; }
+.btn, .layer-chip, .graph-tab, .seg__btn, .stat, .fav__toggle { transition: transform .12s; }
+.btn:active, .layer-chip:active, .graph-tab:active, .seg__btn:active, .fav__toggle:active { transform: scale(.95); }
+@media (prefers-reduced-motion: reduce) {
+  #content > *, .hero__sky svg, .spread__dot { animation: none; }
+  .var__bar, .btn, .layer-chip, .graph-tab, .seg__btn { transition: none; }
+}
