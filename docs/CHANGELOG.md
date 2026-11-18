@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.6 (2026-11-18)
+
+### App
+
+- Icon-first layout with layer chips and a source plot.
+
 ## 1.6.5 (2026-11-17)
 
 ### App
