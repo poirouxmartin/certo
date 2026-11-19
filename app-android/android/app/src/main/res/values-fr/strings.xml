@@ -39,4 +39,9 @@
     <string name="upd_bad_apk">Fichier de mise à jour invalide</string>
     <string name="upd_not_newer">Cette version n\'est pas plus récente que celle installée</string>
     <string name="upd_need_permission">Autorise l\'installation depuis Certo, puis touche à nouveau Installer</string>
+
+    <string name="upd_channel_name">Mises à jour de l\'appli</string>
+    <string name="upd_channel_desc">Te prévient quand une nouvelle version de Certo est disponible</string>
+    <string name="upd_notif_title">Mise à jour disponible : v%1$s</string>
+    <string name="upd_notif_text">Touche pour ouvrir Certo et l\'installer</string>
 </resources>

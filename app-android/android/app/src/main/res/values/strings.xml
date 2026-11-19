@@ -54,4 +54,10 @@
     <string name="upd_bad_apk">Invalid update file</string>
     <string name="upd_not_newer">This version is not newer than the installed one</string>
     <string name="upd_need_permission">Allow installs from Certo, then tap Install again</string>
+
+    <!-- Update notification (UpdateCheckJob), %1$s = "1.6.6" -->
+    <string name="upd_channel_name">App updates</string>
+    <string name="upd_channel_desc">Tells you when a new version of Certo is available</string>
+    <string name="upd_notif_title">Update available: v%1$s</string>
+    <string name="upd_notif_text">Tap to open Certo and install it</string>
 </resources>
