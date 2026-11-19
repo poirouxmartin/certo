@@ -725,37 +725,33 @@ function locateMe() {
   });
 }
 
-/* ---- Language toggle ---- */
-const langBtn = document.getElementById("lang-btn");
-if (langBtn) {
-  langBtn.textContent = LANG.toUpperCase();
-  langBtn.addEventListener("click", () => {
-    setLang({ fr: "en", en: "fr" }[LANG] || "fr");
-    langBtn.textContent = LANG.toUpperCase();
-  });
-}
-
-/* ---- Theme ---- */
-const themeBtn = document.getElementById("theme-btn");
-const THEME_SVGS = {
-  dark: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>',
-  light: '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20.7 15.1a8.5 8.5 0 0 1-11.8-11.8 8.5 8.5 0 1 0 11.8 11.8z"/></svg>',
-};
-
-function applyThemeButton() {
+/* ---- Language and theme: two segmented rows of the Settings sheet ----
+   They were two header buttons ("EN", moon) of the same weight as Locate
+   and Favourites; the 19/11 UX review moved them out of the header. */
+function syncSettingSegs() {
   const dark = document.documentElement.dataset.theme === "dark";
-  themeBtn.innerHTML = dark ? THEME_SVGS.dark : THEME_SVGS.light;
-  themeBtn.title = dark ? tr("theme_light") : tr("theme_dark");
+  document.querySelectorAll("#set-lang .seg__btn").forEach((b) =>
+    b.classList.toggle("seg__btn--active", b.dataset.lang === LANG));
+  document.querySelectorAll("#set-theme .seg__btn").forEach((b) =>
+    b.classList.toggle("seg__btn--active", (b.dataset.themeVal === "dark") === dark));
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = dark ? "#0c1424" : "#f2f5fa"; // = --bg of each theme
 }
-themeBtn.addEventListener("click", () => {
-  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-  document.documentElement.dataset.theme = next;
-  localStorage.setItem("sure-weather-theme", next);
-  applyThemeButton();
+el("set-lang").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-lang]");
+  if (!b || b.dataset.lang === LANG) return;
+  setLang(b.dataset.lang);
+  syncSettingSegs();
+  renderUpdateUi();
 });
-applyThemeButton();
+el("set-theme").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-theme-val]");
+  if (!b) return;
+  document.documentElement.dataset.theme = b.dataset.themeVal;
+  localStorage.setItem("sure-weather-theme", b.dataset.themeVal);
+  syncSettingSegs();
+});
+syncSettingSegs();
 
 /* ---- PWA install prompt (Android) ---- */
 let deferredPrompt = null;
@@ -914,7 +910,7 @@ let backendDown = forceLocal;
    Releases up to v1.6.1 also carried a sure-weather-vX.Y.Z.apk copy for v1.5.2 and older (they look for that name); later releases ship certo-vX.Y.Z.apk only.
    Checked against a raw VERSION file (no rate-limit, CORS-open) — the
    api.github.com endpoint is unusable (60 req/h/IP, shared mobile NATs). */
-const APP_VERSION = "1.6.8";
+const APP_VERSION = "1.6.9";
 const APP_REPO = "poirouxmartin/certo";
 // Native-only bridge to AppUpdaterPlugin.java (registered in MainActivity).
 // Undefined in the browser/PWA, where the banner is a plain link to the APK.
@@ -962,18 +958,22 @@ function notifFirstRun() {
   notifFirstRunDone = true;
   LockScreen.getState().then((st) => (st && !st.asked ? setNotif(true) : showNotifState(st))).catch(() => {});
 }
+/* Settings opens everywhere now (language, theme, update); the notification
+   row only exists in the APK. */
+settingsBtn.addEventListener("click", () => {
+  if (LockScreen) LockScreen.getState().then(showNotifState).catch(() => {});
+  syncSettingSegs();
+  renderUpdateUi();
+  const d = el("settings-sheet");
+  if (d.showModal) d.showModal();
+  else d.setAttribute("open", "");
+});
+el("settings-sheet").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.close();
+});
 if (LockScreen) {
-  settingsBtn.hidden = false;
+  el("set-notif-row").hidden = false;
   LockScreen.getState().then(showNotifState).catch(() => {});
-  settingsBtn.addEventListener("click", () => {
-    LockScreen.getState().then(showNotifState).catch(() => {});
-    const d = el("settings-sheet");
-    if (d.showModal) d.showModal();
-    else d.setAttribute("open", "");
-  });
-  el("settings-sheet").addEventListener("click", (e) => {
-    if (e.target === e.currentTarget) e.currentTarget.close();
-  });
   notifSwitch.addEventListener("change", () => setNotif(notifSwitch.checked));
   el("set-notif-open").addEventListener("click", () => LockScreen.openSystemSettings().catch(() => {}));
   // Back from Android's settings: unblocked with the switch on -> post it now.
@@ -995,6 +995,78 @@ function cmpVersions(a, b) {
   return 0;
 }
 
+/* Update offer. The full-width banner was the loudest element of the home
+   screen (UX review 19/11, P0): it is now a compact snackbar above the tab
+   bar, dismissible once per version, plus a dot on the Settings button and
+   an Install row in Settings that stay until the update is installed.
+   Foreground only: the background WorkManager/JobScheduler check made Play
+   Protect block 1.6.7 and must not come back. */
+const UPDATE_DISMISS_KEY = "sure-weather-update-dismissed";
+let pendingUpdate = null; // { tag, apkUrl } once VERSION is newer
+let updateStatus = "";    // progress or error text
+let updateBusy = false;
+
+function renderUpdateUi() {
+  const u = pendingUpdate;
+  const snack = el("update-snack");
+  el("settings-dot").hidden = !u;
+  el("set-update").hidden = !u;
+  if (!u) { snack.hidden = true; return; }
+  const label = tr("update_available", { v: "v" + u.tag });
+  el("set-update-label").textContent = label;
+  el("set-update-status").textContent = updateStatus;
+  el("set-update-go").disabled = updateBusy;
+  el("update-snack-go").disabled = updateBusy;
+  // Short wording: the full sentence was cut off on a 390 px phone.
+  el("update-snack-text").textContent = updateStatus || tr("update_ready", { v: "v" + u.tag });
+  let dismissed = "";
+  try { dismissed = localStorage.getItem(UPDATE_DISMISS_KEY) || ""; } catch {}
+  snack.hidden = !updateBusy && !updateStatus && dismissed === u.tag;
+}
+
+async function startUpdate() {
+  const u = pendingUpdate;
+  if (!u || updateBusy) return;
+  if (!AppUpdater) {
+    // Browser/PWA: the APK is a plain download.
+    window.open(u.apkUrl, "_blank", "noopener");
+    return;
+  }
+  // Native APK: install in-app. Errors (e.g. NEED_PERMISSION) show as the
+  // status text, the Install buttons stay so the user can retry.
+  updateBusy = true;
+  updateStatus = tr("update_progress", { p: 0 });
+  renderUpdateUi();
+  try {
+    /* The offer was decided at page load. Martin's v1.6.1 page offered
+       v1.6.2 while the phone already ran it (footer v1.6.2 afterwards,
+       14 Nov 2026), so ask the package manager again before a 4 MB
+       download the installer would refuse. */
+    const live = await AppUpdater.getInfo().catch(() => null);
+    if (live?.versionName && cmpVersions(u.tag, live.versionName) <= 0) {
+      pendingUpdate = null;
+      return;
+    }
+    await AppUpdater.downloadAndInstall({ url: u.apkUrl, expectedVersion: u.tag });
+    updateStatus = "";
+  } catch (e) {
+    // Already up to date: nothing to offer, an error would only confuse.
+    if (e?.code === "NOT_NEWER") pendingUpdate = null;
+    else updateStatus = e?.message || String(e);
+  } finally {
+    updateBusy = false;
+    renderUpdateUi();
+  }
+}
+el("update-snack-go").addEventListener("click", startUpdate);
+el("set-update-go").addEventListener("click", startUpdate);
+el("update-snack-close").addEventListener("click", () => {
+  if (!pendingUpdate) return;
+  try { localStorage.setItem(UPDATE_DISMISS_KEY, pendingUpdate.tag); } catch {}
+  updateStatus = "";
+  renderUpdateUi();
+});
+
 async function checkAppUpdate() {
   try {
     // Checked on every launch (VERSION is a tiny no-store fetch). Only a
@@ -1009,48 +1081,14 @@ async function checkAppUpdate() {
     const tag = (await r.text()).trim().replace(/^v/, "");
     const installed = await appVersionReady;
     if (!tag || !installed || cmpVersions(tag, installed) <= 0) return;
-    const banner = document.getElementById("update-banner");
-    if (!banner) return;
-    const apkUrl = `https://github.com/${APP_REPO}/releases/download/v${tag}/certo-v${tag}.apk`;
-    const idle = `<span aria-hidden="true">⬆️</span> ${escHtml(tr("update_available", { v: "v" + tag }))} — ${escHtml(tr("update_download"))}`;
-    banner.href = apkUrl;
-    banner.target = "_blank";
-    banner.rel = "noopener";
-    banner.hidden = false;
-    banner.innerHTML = idle;
+    pendingUpdate = { tag, apkUrl: `https://github.com/${APP_REPO}/releases/download/v${tag}/certo-v${tag}.apk` };
     if (AppUpdater) {
-      // Native APK: install in-app. Errors (e.g. NEED_PERMISSION) replace the
-      // banner text but it stays clickable, so the user can retry.
-      let busy = false;
       AppUpdater.addListener("progress", ({ pct }) => {
-        banner.textContent = tr("update_progress", { p: pct });
-      });
-      banner.addEventListener("click", async (ev) => {
-        ev.preventDefault();
-        if (busy) return;
-        busy = true;
-        try {
-          /* The banner was decided at page load. Martin's v1.6.1 page offered
-             v1.6.2 while the phone already ran it (footer v1.6.2 afterwards,
-             14 Nov 2026), so ask the package manager again before a 4 MB
-             download the installer would refuse. */
-          const live = await AppUpdater.getInfo().catch(() => null);
-          if (live?.versionName && cmpVersions(tag, live.versionName) <= 0) {
-            banner.hidden = true;
-            return;
-          }
-          banner.textContent = tr("update_progress", { p: 0 });
-          await AppUpdater.downloadAndInstall({ url: apkUrl, expectedVersion: tag });
-          banner.innerHTML = idle;
-        } catch (e) {
-          // Already up to date: nothing to offer, an error would only confuse.
-          if (e?.code === "NOT_NEWER") banner.hidden = true;
-          else banner.textContent = e?.message || String(e);
-        } finally {
-          busy = false;
-        }
+        updateStatus = tr("update_progress", { p: pct });
+        renderUpdateUi();
       });
     }
+    renderUpdateUi();
   } catch (e) {
     // Best-effort: remember the failure briefly, retry on next launch.
     try { localStorage.setItem("sure-weather-update-fail", String(Date.now())); } catch {}
@@ -1414,6 +1452,7 @@ function render(data, hours = state.hours) {
   renderTimeline(times, byTime);
   renderSunCard(byTime, data.sun);
   renderUvCard(byTime);
+  renderDays(data.forecast);
 
   /* Hourly cards */
   renderHours(times, byTime);
@@ -1431,6 +1470,94 @@ function render(data, hours = state.hours) {
   renderTable(times, byTime);
   renderSources(data);
 }
+
+/* ---- Next days: one row per local day from the 7-day hourly forecast ----
+   The "7 d" chart answered "will it rain on Saturday?" with a squiggle
+   (UX review 19/11, P0). Always built from the full forecast, whatever range
+   the chart shows. Device-local days, like the rest of the UI (fmtTime). */
+function dayKey(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+function summarizeDays(forecast) {
+  const rows = {};
+  for (const it of forecast) (rows[it.valid_at] = rows[it.valid_at] || {})[it.variable] = it;
+  const days = [];
+  let cur = null;
+  for (const t of Object.keys(rows).sort()) {
+    const k = dayKey(t);
+    if (!cur || cur.key !== k) days.push(cur = { key: k, first: t, hours: [] });
+    cur.hours.push({ time: t, ...rows[t] });
+  }
+  return days.map((d) => {
+    const temps = d.hours.map((h) => h.temperature_2m?.value).filter((v) => v != null);
+    const probs = d.hours.map((h) => h.precipitation_probability?.value).filter((v) => v != null);
+    const rain = d.hours.reduce((a, h) => a + (h.precipitation?.value ?? 0), 0);
+    const hourOf = (h) => new Date(h.time).getHours();
+    const daylight = d.hours.filter((h) => hourOf(h) >= 8 && hourOf(h) < 20);
+    const pool = daylight.length ? daylight : d.hours;
+    const cloud = pool.reduce((a, h) => a + (h.cloud_cover?.value ?? 0), 0) / pool.length;
+    const maxRate = Math.max(0, ...d.hours.map((h) => h.precipitation?.value ?? 0));
+    const prob = probs.length ? Math.max(...probs) : null;
+    // Same thresholds as weatherKey(), lifted to a day: storm on a 5 mm/h
+    // hour, rain on a likely-wet day, otherwise the daytime mean cloud cover.
+    const sky = maxRate > 5 ? "storm"
+      : (prob ?? 0) >= 60 || rain >= 1 ? "rain"
+      : cloud >= 70 ? "cloud" : cloud >= 30 ? "partly" : "day";
+    return {
+      ...d, sky, prob, rain,
+      lo: temps.length ? Math.min(...temps) : null,
+      hi: temps.length ? Math.max(...temps) : null,
+    };
+  }).filter((d, i) => d.lo !== null && (i === 0 || d.hours.length >= 12)); // drop a stub last day
+}
+function dayLabel(iso, i) {
+  if (i === 0) return tr("day_today");
+  if (i === 1) return tr("day_tomorrow");
+  return new Date(iso).toLocaleDateString(tr("locale"), { weekday: "short", day: "numeric" });
+}
+let openDayKey = null;
+function renderDays(forecast) {
+  const card = el("days-card");
+  const days = summarizeDays(forecast || []);
+  if (!days.length) { card.hidden = true; return; }
+  card.hidden = false;
+  const lo = Math.min(...days.map((d) => d.lo));
+  const hi = Math.max(...days.map((d) => d.hi));
+  const span = Math.max(1, hi - lo);
+  const drop = varIcon("precipitation", 14);
+  el("days-list").innerHTML = days.map((d, i) => {
+    const left = ((d.lo - lo) / span) * 100;
+    const width = Math.max(4, ((d.hi - d.lo) / span) * 100);
+    const wet = d.prob != null && d.prob >= 20;
+    const open = d.key === openDayKey;
+    // Hours of the day, every 3 h (every hour would not fit a phone row).
+    const strip = d.hours.filter((h, j) => j % 3 === 0).map((h) => {
+      const wk = weatherKey(h);
+      const p = h.precipitation_probability?.value;
+      return `<li class="dayh"><span class="dayh__t">${fmtTime(h.time)}</span>${weatherSvg(wk.sky, 24)}`
+        + `<b class="dayh__temp">${h.temperature_2m ? Math.round(h.temperature_2m.value) + "°" : "—"}</b>`
+        + `<span class="dayh__p">${p != null && p >= 20 ? Math.round(p) + "%" : ""}</span></li>`;
+    }).join("");
+    return `<li class="day${open ? " day--open" : ""}">`
+      + `<button type="button" class="day__row" data-day="${d.key}" aria-expanded="${open}">`
+      + `<span class="day__name">${escHtml(dayLabel(d.first, i))}</span>`
+      + `<span class="day__sky">${weatherSvg(d.sky, 28)}</span>`
+      + `<span class="day__rain${wet ? "" : " day__rain--dry"}">${wet ? `${drop}${Math.round(d.prob)}%` : ""}</span>`
+      + `<span class="day__lo">${Math.round(d.lo)}°</span>`
+      + `<span class="day__bar"><span style="left:${left}%;width:${width}%;background:linear-gradient(90deg,${tempColor(d.lo)},${tempColor(d.hi)})"></span></span>`
+      + `<span class="day__hi">${Math.round(d.hi)}°</span>`
+      + `</button>`
+      + (open ? `<ul class="day__hours">${strip}</ul>` : "")
+      + `</li>`;
+  }).join("");
+}
+el("days-list").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-day]");
+  if (!b) return;
+  openDayKey = openDayKey === b.dataset.day ? null : b.dataset.day;
+  if (currentData) renderDays(currentData.forecast);
+});
 
 function fmtSunHM(iso) {
   if (!iso) return "—";
@@ -2131,10 +2258,74 @@ $("#fav-btn").addEventListener("click", toggleFavorite);
 
 /* Manual refresh: drop the memoized response for this cell and refetch
    (backend reruns the fusion; standalone refetches the models). */
-document.getElementById("refresh-btn")?.addEventListener("click", () => {
+function refreshForecast() {
   dataCache.delete(cacheKey());
   partialTries.delete(cacheKey());
-  loadForecast();
+  return loadForecast();
+}
+document.getElementById("refresh-btn")?.addEventListener("click", refreshForecast);
+
+/* Pull-to-refresh (touch): replaces the header refresh button on phones.
+   Only from the very top of the page, never from the map (Leaflet pans)
+   nor while a sheet is open. Passive listeners: scrolling is never blocked. */
+(function pullToRefresh() {
+  const ptr = el("ptr");
+  const TRIGGER = 70; // px of pull, about the height of the header
+  let y0 = null, pull = 0;
+  const reset = () => { y0 = null; pull = 0; ptr.style.transform = ""; ptr.classList.remove("ptr--armed"); };
+  document.addEventListener("touchstart", (e) => {
+    if (window.scrollY > 0 || e.touches.length !== 1 || el("content").hidden) return;
+    if (e.target.closest("#map, dialog, .fav__menu, .suggest, input, .timeline__chart")) return;
+    y0 = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (y0 === null) return;
+    pull = Math.max(0, e.touches[0].clientY - y0);
+    if (window.scrollY > 0) return reset();
+    const d = Math.min(pull, TRIGGER * 1.5);
+    ptr.style.transform = `translate(-50%, ${d}px) rotate(${d * 3}deg)`;
+    ptr.classList.toggle("ptr--armed", pull >= TRIGGER);
+  }, { passive: true });
+  document.addEventListener("touchend", () => {
+    if (y0 === null) return;
+    const go = pull >= TRIGGER;
+    reset();
+    if (go) {
+      ptr.classList.add("ptr--spin");
+      Promise.resolve(refreshForecast()).finally(() => ptr.classList.remove("ptr--spin"));
+    }
+  }, { passive: true });
+  document.addEventListener("touchcancel", reset, { passive: true });
+})();
+
+/* ---- Tabs: Today / Radar / Lab ----
+   One endless scroll mixed the forecast with analyst content (UX review
+   19/11, P0). Sections carry data-tab; body[data-tab] shows one group. The
+   app always opens on Today. */
+function setTab(tab) {
+  if (document.body.dataset.tab === tab) return;
+  document.body.dataset.tab = tab;
+  document.querySelectorAll("[data-tab-btn]").forEach((b) => {
+    const on = b.dataset.tabBtn === tab;
+    b.classList.toggle("tabbar__btn--active", on);
+    if (on) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
+  window.scrollTo(0, 0);
+  // Leaflet sized itself while hidden: resize once the map is on screen.
+  if (tab === "radar" && map) {
+    map.invalidateSize();
+    centerMapOn(state.lat, state.lon, state.name);
+    // Viewport fetches skipped while the map was hidden (mapShown()).
+    refreshWindArrows();
+    loadNowcast();
+    refreshLocalModelLayer();
+  }
+}
+document.body.dataset.tab = "today";
+el("tabbar").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-tab-btn]");
+  if (b) setTab(b.dataset.tabBtn);
 });
 
 /* Deep analysis (standalone): match this place's recorded forecasts against
@@ -2505,8 +2696,14 @@ function nowcastCovers(nb, b) {
 
 /* force: skip the 2 min throttle (radar reload wiped the frames, zoom crossed
    NOWCAST_MIN_ZOOM). Every point of the grid counts as one Open-Meteo call. */
+// The map sits in the Radar tab: hidden, its bounds collapse to a point
+// (wind-grid answered 422). Viewport fetches wait for setTab("radar").
+function mapShown() {
+  return !!map && el("map").offsetWidth > 0;
+}
+
 async function loadNowcast(force = false) {
-  if (!map || mapLayer !== "radar" || !radarFrames.length) return;
+  if (!mapShown() || mapLayer !== "radar" || !radarFrames.length) return;
   const b = map.getBounds();
   const lastMs = radarFrames[radarNowIdx].time * 1000;
   let future = [];
@@ -2737,7 +2934,8 @@ function centerMapOn(lat, lon, name) {
   // Recenter only when the place changes: render() also runs for the
   // partial refreshes (every 20 s) and kept undoing the user's pan and zoom.
   const key = `${lat},${lon}`;
-  if (key !== mapCenteredOn) {
+  // Hidden Radar tab: a 0x0 map cannot centre; setTab("radar") calls again.
+  if (key !== mapCenteredOn && el("map").offsetWidth > 0) {
     map.setView([lat, lon], 10);
     mapCenteredOn = key;
   }
@@ -2874,7 +3072,7 @@ function scheduleLocalModelRefresh(ms = 800) {
   localGridTimer = setTimeout(() => { refreshLocalModelLayer(); }, ms);
 }
 async function refreshLocalModelLayer() {
-  if (!map || backendDown !== true) return;
+  if (!mapShown() || backendDown !== true) return;
   if (!window.SureLocal?.modelGrid) return;
   if (!["temp", "precip", "uv", "humidity", "cloud", "pressure"].includes(mapLayer)) return;
   const seq = ++localGridSeq;
@@ -2921,7 +3119,7 @@ function windColor(kmh) {
 
 let windSeq = 0;
 async function refreshWindArrows() {
-  if (!map || !el("wind-toggle").checked) return;
+  if (!mapShown() || !el("wind-toggle").checked) return;
   const seq = ++windSeq; // last response wins: pans fire overlapping fetches
   const placeToken = reqToken;
   const b = map.getBounds();
@@ -3022,7 +3220,9 @@ function openConfSheet() {
   if (d.showModal) d.showModal();
   else d.setAttribute("open", "");
 }
-el("sure-badge").addEventListener("click", openConfSheet);
+// The hero chip is the doorway to the Lab tab (confidence per variable); the
+// "?" on the Lab card still explains the percentage.
+el("sure-badge").addEventListener("click", () => setTab("lab"));
 el("conf-info").addEventListener("click", openConfSheet);
 // Tap on the backdrop closes it (the dialog box itself fills its rect).
 el("conf-sheet").addEventListener("click", (e) => {

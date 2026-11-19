@@ -6,7 +6,7 @@
      weather forever), trimmed to a bounded number of entries.
    - Cross-origin requests (OSM, RainViewer, fonts) are left to the browser:
      re-fetching them from the worker put them under connect-src. */
-const CACHE = "sure-weather-v17";
+const CACHE = "sure-weather-v18";
 const RUNTIME = "sure-weather-tiles-v1";
 const RUNTIME_MAX = 600;
 // "/mini", not "/mini.html": the server only routes /mini, and one 404 makes

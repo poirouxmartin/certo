@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.6.9 (2026-11-20)
+
+### App
+
+- Bottom tabs: Today (forecast), Radar (full-height map), Lab (confidence,
+  sources, tables). The confidence chip opens Lab.
+- Next days card: weekday, sky, rain chance and a min-max bar per day; tap a
+  day for its hours.
+- Lighter header: Locate, Favourites, Settings. Language and theme moved to
+  Settings, pull down to refresh, magnifier inside the search field.
+- The update offer is a small dismissible bar plus a dot on Settings and an
+  Install row there, instead of the full-width banner. Still checked only
+  when the app opens.
+
 ## 1.6.8 (2026-11-19)
 
 ### App
