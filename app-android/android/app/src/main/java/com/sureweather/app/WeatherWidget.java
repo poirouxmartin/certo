@@ -878,10 +878,12 @@ public class WeatherWidget extends AppWidgetProvider {
         JSONArray past = radar != null ? radar.optJSONArray("past") : null;
         if (host.isEmpty() || past == null || past.length() == 0) return;
 
-        // RainViewer serves z7 at most: upsampled x16 (1 px at z7 = 16 px at
-        // z11); the wanted 512 px zone = a 32 px window in z7 pixels.
+        // RainViewer serves z7 at most, but its 512 px tiles hold z8-equivalent
+        // detail: upsampled x8 (1 px of a 512 px z7 tile = 8 px at z11); the
+        // wanted 512 px zone = a 64 px window in sheet pixels.
+        final int T = 512;
         final int F = 1 << (z - 7);
-        final int WIN = 512 / F;
+        final int WIN = 2 * T / F;
         int xa = x0 / F, xb = (x0 + 1) / F; // integer division = floor
         int ya = y0 / F, yb = (y0 + 1) / F;
         int first = Math.max(0, past.length() - RadarFrames.PAST_FRAMES);
@@ -894,7 +896,7 @@ public class WeatherWidget extends AppWidgetProvider {
             List<Future<Bitmap>> tiles = new ArrayList<>();
             for (int tx = xa; tx <= xb; tx++) {
                 for (int ty = ya; ty <= yb; ty++) {
-                    final String url = host + path + "/256/7/" + tx + "/" + ty + "/2/1_1_0.png";
+                    final String url = host + path + "/512/7/" + tx + "/" + ty + "/2/0_1_0.png";
                     tiles.add(NET.submit(() -> fetchBitmap(ctx, url)));
                 }
             }
@@ -904,7 +906,7 @@ public class WeatherWidget extends AppWidgetProvider {
         int ny = yb - ya + 1;
         for (int k = 0; k < all.size(); k++) {
             List<Future<Bitmap>> tiles = all.get(k);
-            Bitmap sheet = Bitmap.createBitmap((xb - xa + 1) * 256, ny * 256, Bitmap.Config.ARGB_8888);
+            Bitmap sheet = Bitmap.createBitmap((xb - xa + 1) * T, ny * T, Bitmap.Config.ARGB_8888);
             Canvas cv = new Canvas(sheet);
             Paint paint = new Paint();
             boolean ok = true;
@@ -912,12 +914,14 @@ public class WeatherWidget extends AppWidgetProvider {
                 Bitmap tile = null;
                 try { tile = tiles.get(i).get(12, TimeUnit.SECONDS); } catch (Exception e) { tiles.get(i).cancel(true); }
                 if (tile == null) { ok = false; continue; }
-                cv.drawBitmap(tile, (i / ny) * 256, (i % ny) * 256, paint);
+                Bitmap rc = RadarPalette.recolorBitmap(tile);
+                cv.drawBitmap(rc, (i / ny) * T, (i % ny) * T, paint);
+                if (rc != tile) rc.recycle();
                 tile.recycle();
             }
             if (!ok) { sheet.recycle(); continue; }
-            int cx = (x0 * 256 / F) - xa * 256;
-            int cy = (y0 * 256 / F) - ya * 256;
+            int cx = (x0 * T / F) - xa * T;
+            int cy = (y0 * T / F) - ya * T;
             cx = Math.max(0, Math.min(sheet.getWidth() - WIN, cx));
             cy = Math.max(0, Math.min(sheet.getHeight() - WIN, cy));
             Bitmap window = Bitmap.createBitmap(sheet, cx, cy, WIN, WIN);
