@@ -2805,7 +2805,7 @@ function applyMapLayer() {
   };
   const label = layerLabels[mapLayer] || mapLayer;
   el("radar-status").textContent = label;
-  // légende détaillée par paramètre (backend comme on-device: mêmes plages)
+  // per-parameter detailed legend (backend and on-device share the same ranges)
   const lg = document.getElementById("map-legend");
   if (lg) {
     const legends = {
