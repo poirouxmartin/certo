@@ -62,7 +62,7 @@ public class LockScreenPlugin extends Plugin {
             ctx.startActivity(i);
             call.resolve();
         } catch (Exception e) {
-            call.reject("Réglages Android indisponibles", e);
+            call.reject(getContext().getString(R.string.err_settings_unavailable), e);
         }
     }
 
@@ -74,7 +74,7 @@ public class LockScreenPlugin extends Plugin {
         }
         // Remembered as "off": the app must not ask again at every launch.
         LockScreenWeather.setEnabled(getContext(), false);
-        call.reject("Notifications refusées : autorisez-les dans les réglages Android", "PERMISSION_DENIED");
+        call.reject(getContext().getString(R.string.err_notif_denied), "PERMISSION_DENIED");
     }
 
     private void enable(PluginCall call) {

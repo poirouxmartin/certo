@@ -3,7 +3,7 @@
    the phone and fuses them with a median consensus. No learned calibration
    (no residual history on device): confidence reflects inter-model agreement
    and items are marked calibrated:false — the UI shows honest "non cal."
-   ranges instead of fake "sûr" badges. Payload shape matches GET /weather. */
+   ranges instead of fake "sure" badges. Payload shape matches GET /weather. */
 "use strict";
 
 window.SureLocal = (() => {
@@ -159,22 +159,22 @@ window.SureLocal = (() => {
       try {
         const r = await fetch(url, { signal });
         if (r.status === 429 || (r.status >= 500 && r.status <= 599)) {
-          lastErr = new Error(`${what}: serveur saturé (${r.status}), nouvel essai…`);
+          lastErr = new Error(`${what}: server busy (${r.status}), retrying`);
           await sleep(attempt * 2000);
           continue;
         }
-        if (!r.ok) throw new Error(`${what}: erreur ${r.status}`);
+        if (!r.ok) throw new Error(`${what}: error ${r.status}`);
         return await r.json();
       } catch (e) {
         // Offline / DNS / CORS: no point retrying the same burst.
         if (e instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(e.message || "")) {
-          throw Object.assign(new Error("pas de connexion Internet — vérifie le réseau puis réessaie"), { offline: true });
+          throw Object.assign(new Error("no Internet connection"), { offline: true });
         }
         lastErr = e;
         if (attempt < 3) await sleep(attempt * 2000);
       }
     }
-    throw lastErr || new Error(`${what}: échec`);
+    throw lastErr || new Error(`${what}: failed`);
   }
 
   function summarize(items) {
@@ -192,7 +192,7 @@ window.SureLocal = (() => {
     }
     // sure = learned-calibrated AND confident (backend parity). Before any
     // learning the flags stay false and the UI shows honest "non cal."
-    // ranges instead of fake "sûr" badges.
+    // ranges instead of fake "sure" badges.
     const summary = { horizons: {}, variables: {} };
     for (const [label, bucket] of Object.entries(horizons)) {
       const avg = bucket.reduce((a, b) => a + b.confidence, 0) / bucket.length;
@@ -221,12 +221,12 @@ window.SureLocal = (() => {
       // High-res regional models (AROME France 1.3km, ICON-D2 2.2km):
       // best-effort, skipped silently outside their domain. Started in
       // parallel with the main request to save one round-trip.
-      const hiPromise = fetchJson(forecastUrl(lat, lon, HIRES_MODELS), ctrl.signal, "haute-résolution").catch(() => null);
-      const data = await fetchJson(forecastUrl(lat, lon, MODELS), ctrl.signal, "prévisions");
+      const hiPromise = fetchJson(forecastUrl(lat, lon, HIRES_MODELS), ctrl.signal, "high-resolution").catch(() => null);
+      const data = await fetchJson(forecastUrl(lat, lon, MODELS), ctrl.signal, "forecast");
       const hiData = await hiPromise;
       const hourly = data.hourly || {};
       const modelsOk = MODELS.filter((m) => HOURLY.some((v) => hourly[`${v}_${m}`] || hourly[v]));
-      if (!modelsOk.length) throw new Error("réponse météo vide — réessaie dans une minute");
+      if (!modelsOk.length) throw new Error("empty weather response");
       // timezone=UTC was requested: stamp Z so browsers parse true UTC.
       // NOTE: with several models, daily vars come back suffixed per model
       // (sunrise_gfs_seamless, …) — plain `sunrise` is then absent.

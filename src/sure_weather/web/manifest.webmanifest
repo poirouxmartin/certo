@@ -2,8 +2,8 @@
   "id": "/?source=pwa",
   "name": "Certo",
   "short_name": "Certo",
-  "description": "Prévisions météo multi-sources avec confiance calibrée par variable.",
-  "lang": "fr",
+  "description": "Multi-source weather forecasts with calibrated confidence per variable.",
+  "lang": "en",
   "dir": "ltr",
   "start_url": "/?source=pwa",
   "scope": "/",
@@ -31,8 +31,8 @@
   ],
   "widgets": [
     {
-      "name": "Météo actuelle",
-      "description": "Température et conditions en 1 coup d'œil",
+      "name": "Current weather",
+      "description": "Temperature and conditions at a glance",
       "tag": "current-weather",
       "template": "current-weather-template",
       "msAcTemplate": "/static/widget-template.json",

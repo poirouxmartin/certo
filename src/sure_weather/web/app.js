@@ -163,7 +163,7 @@ function renderFavorites() {
   if (btn) {
     const active = isFavorite(state.lat, state.lon);
     btn.classList.toggle("fav--active", active);
-    btn.title = active ? "Retirer des favoris" : "Ajouter aux favoris";
+    btn.title = active ? tr("fav_remove") : tr("fav_add");
     btn.innerHTML = active ? "★" : "☆";
   }
   if (!wrap) return;
@@ -171,7 +171,7 @@ function renderFavorites() {
   if (!list.length) {
     const empty = document.createElement("li");
     empty.className = "fav__empty";
-    empty.textContent = "Aucun favori — cliquez sur ☆ pour enregistrer un lieu";
+    empty.textContent = tr("fav_empty");
     wrap.appendChild(empty);
     return;
   }
@@ -244,10 +244,10 @@ const setTip = (n, text) => { n.title = text; n.setAttribute("aria-label", text)
 function fmtTime(iso) {
   // Note: browser-local timezone. Consulting a far-away place shows YOUR
   // local hours, not the place's — the suffix in the table header says so.
-  return new Date(iso).toLocaleTimeString(LANG === "en" ? "en-GB" : "fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString(tr("locale"), { hour: "2-digit", minute: "2-digit" });
 }
 function fmtDay(iso) {
-  return new Date(iso).toLocaleDateString(LANG === "en" ? "en-GB" : "fr-FR", { weekday: "short", day: "numeric", month: "short" });
+  return new Date(iso).toLocaleDateString(tr("locale"), { weekday: "short", day: "numeric", month: "short" });
 }
 function round(v, d = 1) {
   if (v === null || v === undefined || Number.isNaN(v)) return "—";
@@ -419,7 +419,7 @@ function confBadge(c, calibrated) {
   if (!calibrated || c === null || c === undefined) {
     return `<span class="hour__conf hour__conf--na" title="${tr("conf_na_tip")}">${tr("conf_na")}</span>`;
   }
-  if (c >= 0.98) return `<span class="hour__conf hour__conf--hi">${LANG === "en" ? "sure 98%+" : "sûr 98%+"}</span>`;
+  if (c >= 0.98) return `<span class="hour__conf hour__conf--hi">${tr("sure_badge")}</span>`;
   if (c >= 0.95) return `<span class="hour__conf hour__conf--hi">95%+</span>`;
   if (c >= 0.9) return `<span class="hour__conf hour__conf--mid">90%+</span>`;
   return `<span class="hour__conf hour__conf--lo"><90%</span>`;
@@ -697,7 +697,7 @@ const langBtn = document.getElementById("lang-btn");
 if (langBtn) {
   langBtn.textContent = LANG.toUpperCase();
   langBtn.addEventListener("click", () => {
-    setLang(LANG === "fr" ? "en" : "fr");
+    setLang({ fr: "en", en: "fr" }[LANG] || "fr");
     langBtn.textContent = LANG.toUpperCase();
   });
 }
@@ -1214,7 +1214,7 @@ function errorText(e) {
 /* "14:05" today, "mon. 14:05" otherwise: a cached forecast can be days old. */
 function fmtStamp(iso) {
   const d = new Date(iso);
-  const loc = LANG === "en" ? "en-GB" : "fr-FR";
+  const loc = tr("locale");
   const t = d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" });
   return d.toDateString() === new Date().toDateString()
     ? t : `${d.toLocaleDateString(loc, { weekday: "short", day: "numeric" })} ${t}`;
@@ -1224,7 +1224,7 @@ function fmtAge(ms) {
   const min = Math.round(ms / 60000);
   if (min < 60) return `${min} min`;
   const h = Math.round(min / 60);
-  return h < 48 ? `${h} h` : `${Math.round(h / 24)} ${LANG === "en" ? "d" : "j"}`;
+  return h < 48 ? `${h} h` : `${Math.round(h / 24)} ${tr("day_unit")}`;
 }
 
 function showError(message) {
@@ -1343,7 +1343,7 @@ function render(data, hours = state.hours) {
   footerEl.textContent = tr("sources", {
     models: shown,
     st: stationCount,
-    u: new Date(data.generated_at).toLocaleTimeString(LANG === "en" ? "en-GB" : "fr-FR"),
+    u: new Date(data.generated_at).toLocaleTimeString(tr("locale")),
   }) + (appVersion ? ` · v${appVersion}` : "");
   footerEl.title = `${tr("sources_full")}: ${modelNames.join(", ")} | ${stationNames.join(", ")}`;
   centerMapOn(state.lat, state.lon, state.name);
@@ -1396,7 +1396,7 @@ function render(data, hours = state.hours) {
 function fmtSunHM(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleTimeString(LANG === "en" ? "en-GB" : "fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleTimeString(tr("locale"), { hour: "2-digit", minute: "2-digit" });
 }
 function minutesBetween(a, b) {
   if (!a || !b) return 0;
@@ -1709,7 +1709,7 @@ function renderTimeline(times, byTime, graph = state.graph) {
       if (prob >= 5 || mm > 0.05) {
         const bh = Math.max((Math.max(prob, Math.min(mm * 20, 100)) / 100) * rainH, 3);
         parts.push(
-          `<rect x="${(x0 + colW * 0.18).toFixed(1)}" y="${(yBase - bh).toFixed(1)}" width="${(colW * 0.64).toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="#3b82f6" opacity="${(0.25 + Math.min(prob, 100) / 100 * 0.55).toFixed(2)}"><title>pluie ${Math.round(prob)}%</title></rect>`
+          `<rect x="${(x0 + colW * 0.18).toFixed(1)}" y="${(yBase - bh).toFixed(1)}" width="${(colW * 0.64).toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="#3b82f6" opacity="${(0.25 + Math.min(prob, 100) / 100 * 0.55).toFixed(2)}"><title>${tr("rain_pct", { p: Math.round(prob) })}</title></rect>`
         );
       }
     }
@@ -1922,7 +1922,7 @@ function renderSources(data) {
   if (!tb) return;
   tb.innerHTML = "";
   const bd = data.breakdown || [];
-  if (badge) badge.textContent = bd.length ? `${bd.length} sources · ${fmtTime(data.breakdown_valid_at)}` : "";
+  if (badge) badge.textContent = bd.length ? tr("sources_badge", { n: bd.length, t: fmtTime(data.breakdown_valid_at) }) : "";
   if (!bd.length) {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td colspan="6" style="text-align:center;color:var(--ink-faint)">—</td>`;
@@ -2068,7 +2068,7 @@ document.getElementById("deep-btn")?.addEventListener("click", async () => {
     dataCache.delete(cacheKey());
     await loadForecast();
   } catch (e) {
-    status.textContent = e.message;
+    status.textContent = errorText(e);
   } finally {
     btn.disabled = false;
   }
@@ -2495,7 +2495,7 @@ function fmtRelMin(m) {
 }
 
 function updateRadarHud(f) {
-  const hhmm = new Date(f.time * 1000).toLocaleTimeString(LANG === "en" ? "en-GB" : "fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const hhmm = new Date(f.time * 1000).toLocaleTimeString(tr("locale"), { hour: "2-digit", minute: "2-digit" });
   const fc = radarIdx > radarNowIdx;
   // Past frames count from the "now" frame (tidy -10/-20 min); forecasts from
   // the real clock, since the last radar image is already some minutes old.
@@ -2702,8 +2702,8 @@ function applyMapLayer() {
     if (lg) lg.hidden = true;
     return;
   }
-  // layer_precip already says "(modèle)" / "(model)": no second suffix.
-  const modelTag = LANG === "en" ? " (model)" : " (modèle)";
+  // layer_precip already says "(model)": no second suffix.
+  const modelTag = tr("model_tag");
   const layerLabels = {
     temp: tr("layer_temp") + modelTag,
     precip: tr("layer_precip"),
@@ -2714,7 +2714,7 @@ function applyMapLayer() {
   };
   const label = layerLabels[mapLayer] || mapLayer;
   el("radar-status").textContent = label;
-  // légende détaillée par paramètre (backend comme on-device: mêmes plages)
+  // detailed legend per parameter (backend and on-device: same ranges)
   const lg = document.getElementById("map-legend");
   if (lg) {
     const legends = {

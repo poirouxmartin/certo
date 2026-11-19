@@ -50,6 +50,7 @@ app-android/android/app/src/main/res/*
 !app-android/android/app/src/main/res/anim
 !app-android/android/app/src/main/res/layout
 !app-android/android/app/src/main/res/values
+!app-android/android/app/src/main/res/values-fr
 !app-android/android/app/src/main/res/xml
 !app-android/android/app/src/main/res/drawable
 !app-android/android/app/src/main/res/mipmap-mdpi

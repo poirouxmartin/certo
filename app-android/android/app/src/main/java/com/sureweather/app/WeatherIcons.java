@@ -1,10 +1,23 @@
 package com.sureweather.app;
 
 /**
- * WMO weather code -> {emoji, short French label}, shared by the widget and
- * the lock-screen notification. Pure Java (no Android API): unit-tested on the JVM.
+ * WMO weather code -> {emoji, short label}, shared by the widget and the
+ * lock-screen notification. The label is a string resource id (values/ English,
+ * values-fr/ French) so it follows the device locale; resolving it is left to
+ * the caller, which keeps this class free of Android APIs and JVM-testable.
  */
 final class WeatherIcons {
+
+    /** Emoji + string resource id of the label (0 = no label). */
+    static final class Condition {
+        final String icon;
+        final int label;
+
+        Condition(String icon, int label) {
+            this.icon = icon;
+            this.label = label;
+        }
+    }
 
     private WeatherIcons() {}
 
@@ -20,22 +33,22 @@ final class WeatherIcons {
     static final double LIGHT_MM = 1.0;
 
     /** Raw mapping of the code alone. */
-    static String[] conditionFor(int code) {
-        if (code == 0) return new String[]{"☀️", "Dégagé"};
-        if (code == 1) return new String[]{"🌤️", "Peu nuageux"};
-        if (code == 2) return new String[]{"⛅", "Partiellement nuageux"};
-        if (code == 3) return new String[]{"☁️", "Couvert"};
-        if (code == 45 || code == 48) return new String[]{"🌫️", "Brouillard"};
+    static Condition conditionFor(int code) {
+        if (code == 0) return new Condition("☀️", R.string.cond_clear);
+        if (code == 1) return new Condition("🌤️", R.string.cond_mostly_clear);
+        if (code == 2) return new Condition("⛅", R.string.cond_partly_cloudy);
+        if (code == 3) return new Condition("☁️", R.string.cond_overcast);
+        if (code == 45 || code == 48) return new Condition("🌫️", R.string.cond_fog);
         // Freezing drizzle before the 51..57 range, which used to swallow it.
-        if (code == 56 || code == 57) return new String[]{"🌧️", "Bruine verglaçante"};
-        if (code >= 51 && code <= 55) return new String[]{"🌦️", "Bruine"};
-        if (code == 66 || code == 67) return new String[]{"🌧️", "Pluie verglaçante"};
-        if (code >= 61 && code <= 65) return new String[]{"🌧️", "Pluie"};
-        if (code >= 80 && code <= 82) return new String[]{"🌧️", "Averses"};
-        if ((code >= 71 && code <= 77) || code == 85 || code == 86) return new String[]{"❄️", "Neige"};
-        if (code == 95) return new String[]{"⛈️", "Orage"};
-        if (code == 96 || code == 99) return new String[]{"⛈️", "Orage grêle"};
-        return new String[]{"☁️", ""};
+        if (code == 56 || code == 57) return new Condition("🌧️", R.string.cond_freezing_drizzle);
+        if (code >= 51 && code <= 55) return new Condition("🌦️", R.string.cond_drizzle);
+        if (code == 66 || code == 67) return new Condition("🌧️", R.string.cond_freezing_rain);
+        if (code >= 61 && code <= 65) return new Condition("🌧️", R.string.cond_rain);
+        if (code >= 80 && code <= 82) return new Condition("🌧️", R.string.cond_showers);
+        if ((code >= 71 && code <= 77) || code == 85 || code == 86) return new Condition("❄️", R.string.cond_snow);
+        if (code == 95) return new Condition("⛈️", R.string.cond_thunder);
+        if (code == 96 || code == 99) return new Condition("⛈️", R.string.cond_thunder_hail);
+        return new Condition("☁️", 0);
     }
 
     /** Liquid, non-freezing precipitation codes (the ones over-reported). */
@@ -45,18 +58,18 @@ final class WeatherIcons {
 
     /** Code checked against the amount (mm/h), the probability (%) and the
      * cloud cover (%) of the same slot; NaN = unknown, the code is trusted. */
-    static String[] condition(int code, double mmPerHour, double prob, double cloud) {
+    static Condition condition(int code, double mmPerHour, double prob, double cloud) {
         if (!isPlainWet(code) || Double.isNaN(mmPerHour)) return conditionFor(code);
         boolean probable = !Double.isNaN(prob) && prob >= WET_PROB;
         if (mmPerHour < DRY_MM && !probable) return cloudy(cloud);
         boolean drizzle = code <= 55;
-        if (mmPerHour < LIGHT_MM) return new String[]{"🌦️", drizzle ? "Bruine" : "Pluie faible"};
-        return new String[]{"🌧️", code >= 80 ? "Averses" : "Pluie"};
+        if (mmPerHour < LIGHT_MM) return new Condition("🌦️", drizzle ? R.string.cond_drizzle : R.string.cond_light_rain);
+        return new Condition("🌧️", code >= 80 ? R.string.cond_showers : R.string.cond_rain);
     }
 
-    static String[] cloudy(double cloud) {
-        if (Double.isNaN(cloud) || cloud >= 80) return new String[]{"☁️", "Couvert"};
-        if (cloud >= 40) return new String[]{"⛅", "Nuageux"};
-        return new String[]{"🌤️", "Peu nuageux"};
+    static Condition cloudy(double cloud) {
+        if (Double.isNaN(cloud) || cloud >= 80) return new Condition("☁️", R.string.cond_overcast);
+        if (cloud >= 40) return new Condition("⛅", R.string.cond_cloudy);
+        return new Condition("🌤️", R.string.cond_mostly_clear);
     }
 }

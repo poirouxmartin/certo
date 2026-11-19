@@ -46,7 +46,7 @@ public class AppUpdaterPlugin extends Plugin {
                     .put("versionName", info.versionName)
                     .put("versionCode", versionCodeOf(info)));
         } catch (PackageManager.NameNotFoundException e) {
-            call.reject("Application introuvable", "NOT_FOUND");
+            call.reject(getContext().getString(R.string.upd_app_not_found), "NOT_FOUND");
         }
     }
 
@@ -55,14 +55,14 @@ public class AppUpdaterPlugin extends Plugin {
         String url = call.getString("url", "");
         String expectedVersion = call.getString("expectedVersion", "");
         if (!url.startsWith(URL_PREFIX)) {
-            call.reject("Source de mise à jour refusée", "BAD_URL");
+            call.reject(getContext().getString(R.string.upd_bad_url), "BAD_URL");
             return;
         }
         // Bare thread: an uncaught runtime error (getUriForFile, startActivity)
         // would kill the process and leave the PluginCall pending forever.
         new Thread(() -> {
             try { download(call, url, expectedVersion); }
-            catch (Exception e) { call.reject("Mise à jour impossible : " + e.getMessage(), "UPDATE_FAILED"); }
+            catch (Exception e) { call.reject(getContext().getString(R.string.upd_failed, e.getMessage()), "UPDATE_FAILED"); }
         }).start();
     }
 
@@ -96,7 +96,7 @@ public class AppUpdaterPlugin extends Plugin {
             }
         } catch (Exception e) {
             apk.delete();
-            call.reject("Téléchargement impossible : " + e.getMessage(), "DOWNLOAD_FAILED");
+            call.reject(getContext().getString(R.string.upd_download_failed, e.getMessage()), "DOWNLOAD_FAILED");
             return;
         }
 
@@ -106,19 +106,19 @@ public class AppUpdaterPlugin extends Plugin {
         if (downloaded == null || !pkg.equals(downloaded.packageName)
                 || !expectedVersion.equals(downloaded.versionName)) {
             apk.delete();
-            call.reject("Fichier de mise à jour invalide", "BAD_APK");
+            call.reject(getContext().getString(R.string.upd_bad_apk), "BAD_APK");
             return;
         }
         try {
             PackageInfo installed = pm.getPackageInfo(pkg, 0);
             if (versionCodeOf(downloaded) <= versionCodeOf(installed)) {
                 apk.delete();
-                call.reject("Cette version n'est pas plus récente que celle installée", "NOT_NEWER");
+                call.reject(getContext().getString(R.string.upd_not_newer), "NOT_NEWER");
                 return;
             }
         } catch (PackageManager.NameNotFoundException e) {
             apk.delete();
-            call.reject("Application introuvable", "BAD_APK");
+            call.reject(getContext().getString(R.string.upd_app_not_found), "BAD_APK");
             return;
         }
 
@@ -128,7 +128,7 @@ public class AppUpdaterPlugin extends Plugin {
             Intent settings = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + pkg));
             settings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             ctx.startActivity(settings);
-            call.reject("Autorise l'installation depuis Certo, puis touche à nouveau Installer", "NEED_PERMISSION");
+            call.reject(getContext().getString(R.string.upd_need_permission), "NEED_PERMISSION");
             return;
         }
 
@@ -158,11 +158,11 @@ public class AppUpdaterPlugin extends Plugin {
             String location = conn.getHeaderField("Location");
             conn.disconnect();
             if (location == null || hop == MAX_REDIRECTS) {
-                throw new IOException("redirection invalide");
+                throw new IOException("invalid redirect");
             }
             next = new URL(new URL(next), location).toString();
             if (!next.startsWith("https://")) {
-                throw new IOException("redirection non HTTPS");
+                throw new IOException("non-HTTPS redirect");
             }
         }
     }
