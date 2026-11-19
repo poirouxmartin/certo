@@ -10,9 +10,9 @@
     android:paddingBottom="8dp"
     android:background="@drawable/widget_bg">
 
-    <!-- Lieu + horodate. Le ⟳ (32 dp) est passé sur la carte : dans cette
-         ligne il imposait 32 dp de haut pour un texte de ~21, et à police
-         1,15 la ligne du vent sortait par le bas (Pixel 8, 15 nov. 2026). -->
+    <!-- Place + timestamp. The ⟳ (32 dp) moved onto the card: in this row it
+         forced 32 dp of height for ~21 dp of text, and at font scale 1.15 the
+         wind row overflowed at the bottom (Pixel 8, 15 Nov 2026). -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -49,8 +49,8 @@
             android:shadowRadius="2" />
     </LinearLayout>
 
-    <!-- Infos à gauche, carte à droite ; la ligne prend toute la hauteur restante
-         (sinon une bande vide reste en bas du widget 2 lignes) -->
+    <!-- Info on the left, card on the right; the row takes all remaining height
+         (otherwise an empty band stays at the bottom of the 2-row widget) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
