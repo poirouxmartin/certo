@@ -1,10 +1,10 @@
 ﻿<!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f2f5fa" />
-  <meta name="description" content="Prévisions météo multi-sources avec confiance calibrée par variable." />
+  <meta name="description" content="Multi-source weather forecasts with calibrated confidence per variable." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -35,13 +35,13 @@
         <span class="topbar__name">Certo</span>
       </div>
       <div class="topbar__actions">
-        <button class="btn btn--ghost" id="refresh-btn" type="button" data-i18n-title="refresh" title="Actualiser">
+        <button class="btn btn--ghost" id="refresh-btn" type="button" data-i18n-title="refresh" title="Refresh">
           <span class="ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg></span>
         </button>
-        <button class="btn btn--ghost" id="notif-btn" type="button" hidden data-i18n-title="notif_on" title="Activer les alertes météo">🔔</button>
-        <button class="btn btn--ghost" id="settings-btn" type="button" hidden data-i18n-title="settings" title="Réglages">⚙️</button>
-        <button class="btn btn--ghost" id="install-btn" type="button" hidden style="border-style: dashed;" data-i18n-title="install" title="Installer l'app">⬇ Installer</button>
-        <button class="btn btn--ghost" id="lang-btn" type="button" data-i18n-title="lang_title" title="FR / EN">FR</button>
+        <button class="btn btn--ghost" id="notif-btn" type="button" hidden data-i18n-title="notif_on" title="Turn on weather alerts">🔔</button>
+        <button class="btn btn--ghost" id="settings-btn" type="button" hidden data-i18n-title="settings" title="Settings">⚙️</button>
+        <button class="btn btn--ghost" id="install-btn" type="button" hidden style="border-style: dashed;" data-i18n-title="install" title="Install the app" data-i18n="install_short">⬇ Install</button>
+        <button class="btn btn--ghost" id="lang-btn" type="button" data-i18n-title="lang_title" title="Language: French / English">FR</button>
         <button class="btn btn--ghost" id="theme-btn" type="button" data-i18n-title="theme">🌙</button>
         <button class="btn btn--ghost" id="locate-btn" type="button" data-i18n-title="locate">
           <span class="ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
@@ -49,16 +49,16 @@
         <div class="fav" id="fav-menu">
           <button class="btn btn--ghost" id="fav-open" type="button" data-i18n-title="fav" aria-haspopup="true" aria-expanded="false">
             <span class="ic"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>
-            <span class="fav__label" data-i18n="fav">Favoris</span>
+            <span class="fav__label" data-i18n="fav">Favorites</span>
           </button>
           <ul class="fav__menu" id="fav-list" hidden></ul>
         </div>
       </div>
       <form class="search" id="search-form" autocomplete="off">
-        <label class="sr-only" for="search-input" data-i18n="search">Rechercher</label>
+        <label class="sr-only" for="search-input" data-i18n="search">Search</label>
         <input class="search__input" id="search-input" type="search"
-               data-i18n-ph="search_ph" placeholder="Ville, adresse, ou lat, lon…" />
-        <button class="btn btn--primary search__go" type="submit" data-i18n-title="search" title="Rechercher">
+               data-i18n-ph="search_ph" placeholder="City, address, or lat, lon…" />
+        <button class="btn btn--primary search__go" type="submit" data-i18n-title="search" title="Search">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
         </button>
       </form>
@@ -69,26 +69,26 @@
     <!-- Loading / errors -->
     <div class="loading" id="loading" hidden aria-live="polite">
       <div class="spinner" aria-hidden="true"></div>
-      <span data-i18n="loading_calib">Calcul de la confiance…</span>
+      <span data-i18n="loading_calib">Computing confidence…</span>
       <span class="loading__status" id="load-status"></span>
     </div>
     <div class="error" id="error" hidden aria-live="assertive"></div>
-    <div class="empty" id="empty" hidden data-i18n="empty">Aucune prévision disponible pour ce point.</div>
+    <div class="empty" id="empty" hidden data-i18n="empty">No data for this area.</div>
 
     <!-- First launch: ask where, instead of silently showing Paris -->
     <section class="card welcome" id="welcome" hidden aria-labelledby="welcome-title">
-      <h1 class="welcome__title" id="welcome-title" data-i18n="welcome_title">Où voulez-vous la météo ?</h1>
-      <p class="welcome__text" data-i18n="welcome_text">Certo utilise votre position uniquement pour calculer la météo de l'endroit où vous êtes.</p>
+      <h1 class="welcome__title" id="welcome-title" data-i18n="welcome_title">Where do you want the weather?</h1>
+      <p class="welcome__text" data-i18n="welcome_text">Certo uses your location only to compute the weather where you are. You can also pick a city.</p>
       <button class="btn btn--primary welcome__locate" id="welcome-locate" type="button">
-        <span aria-hidden="true">📍</span> <span data-i18n="welcome_locate">Utiliser ma position</span>
+        <span aria-hidden="true">📍</span> <span data-i18n="welcome_locate">Use my location</span>
       </button>
       <p class="welcome__msg" id="welcome-msg" role="status" hidden></p>
-      <div class="welcome__or" data-i18n="welcome_or">ou</div>
+      <div class="welcome__or" data-i18n="welcome_or">or</div>
       <form class="search welcome__search" id="welcome-form" autocomplete="off">
-        <label class="sr-only" for="welcome-input" data-i18n="welcome_city_ph">Choisir une ville…</label>
+        <label class="sr-only" for="welcome-input" data-i18n="welcome_city_ph">Pick a city…</label>
         <input class="search__input" id="welcome-input" type="search"
-               data-i18n-ph="welcome_city_ph" placeholder="Choisir une ville…" />
-        <button class="btn btn--ghost" type="submit" data-i18n="welcome_city_go">Voir la météo</button>
+               data-i18n-ph="welcome_city_ph" placeholder="Pick a city…" />
+        <button class="btn btn--ghost" type="submit" data-i18n="welcome_city_go">Show weather</button>
       </form>
     </section>
 
@@ -120,28 +120,28 @@
       <!-- Hourly meteogram -->
       <section class="card timeline">
         <div class="card__head">
-          <h2 class="card__title"><span class="tab-ic" aria-hidden="true">🕒</span><span data-i18n="mg_title">Prochaines heures</span></h2>
+          <h2 class="card__title"><span class="tab-ic" aria-hidden="true">🕒</span><span data-i18n="mg_title">Next hours</span></h2>
           <div class="seg seg--inline" id="range-seg">
             <button class="seg__btn" data-hours="1">1 h</button>
             <button class="seg__btn" data-hours="3">3 h</button>
             <button class="seg__btn" data-hours="8">8 h</button>
             <button class="seg__btn seg__btn--active" data-hours="24">24 h</button>
             <button class="seg__btn" data-hours="72">72 h</button>
-            <button class="seg__btn" data-hours="168" data-i18n="rng_7d">7 j</button>
+            <button class="seg__btn" data-hours="168" data-i18n="rng_7d">7 d</button>
           </div>
         </div>
         <div class="graph-tabs" id="graph-tabs">
           <button class="graph-tab graph-tab--active" data-graph="temperature_2m"><span class="tab-ic" aria-hidden="true">🌡️</span><span data-i18n="gt_temp">Temp</span></button>
-          <button class="graph-tab" data-graph="precipitation"><span class="tab-ic" aria-hidden="true">💧</span><span data-i18n="gt_rain">Pluie</span></button>
-          <button class="graph-tab" data-graph="wind_speed_10m"><span class="tab-ic" aria-hidden="true">💨</span><span data-i18n="gt_wind">Vent</span></button>
-          <button class="graph-tab" data-graph="pressure_msl"><span class="tab-ic" aria-hidden="true">⏲️</span><span data-i18n="gt_press">Pression</span></button>
-          <button class="graph-tab" data-graph="relative_humidity_2m"><span class="tab-ic" aria-hidden="true">💦</span><span data-i18n="gt_hum">Humidité</span></button>
+          <button class="graph-tab" data-graph="precipitation"><span class="tab-ic" aria-hidden="true">💧</span><span data-i18n="gt_rain">Rain</span></button>
+          <button class="graph-tab" data-graph="wind_speed_10m"><span class="tab-ic" aria-hidden="true">💨</span><span data-i18n="gt_wind">Wind</span></button>
+          <button class="graph-tab" data-graph="pressure_msl"><span class="tab-ic" aria-hidden="true">⏲️</span><span data-i18n="gt_press">Pressure</span></button>
+          <button class="graph-tab" data-graph="relative_humidity_2m"><span class="tab-ic" aria-hidden="true">💦</span><span data-i18n="gt_hum">Humidity</span></button>
           <button class="graph-tab" data-graph="uv_index"><span class="tab-ic" aria-hidden="true">☀️</span><span data-i18n="gt_uv">UV</span></button>
         </div>
         <div class="timeline__chart" id="timeline-chart"></div>
       </section>
 
-      <!-- Soleil, UV — schémas parlants en 1 coup d'oeil -->
+      <!-- Sun, UV: diagrams readable at a glance -->
       <section class="sun-uv-grid" id="sun-uv-grid">
         <div class="card sun-card" id="sun-card"></div>
         <div class="card uv-card" id="uv-card"></div>
@@ -150,7 +150,7 @@
       <!-- Hourly detail cards: collapsible, the meteogram is the primary view -->
       <details class="card hourscard" id="hourscard">
         <summary>
-          <span class="tab-ic" aria-hidden="true">📋</span><span class="card__title" data-i18n="hours_title">Détail heure par heure</span>
+          <span class="tab-ic" aria-hidden="true">📋</span><span class="card__title" data-i18n="hours_title">Hour-by-hour detail</span>
           <span class="card__badge card__badge--muted" id="hours-count"></span>
           <span class="chevron" aria-hidden="true">▾</span>
         </summary>
@@ -160,30 +160,30 @@
       <!-- Radar & map -->
       <section class="card mapcard">
         <div class="card__head">
-          <h2 class="card__title" data-i18n-title="map_hint"><span class="tab-ic" aria-hidden="true">🗺️</span><span data-i18n="map_title">Radar & carte</span></h2>
+          <h2 class="card__title" data-i18n-title="map_hint"><span class="tab-ic" aria-hidden="true">🗺️</span><span data-i18n="map_title">Radar &amp; map</span></h2>
           <span class="card__badge card__badge--muted" id="radar-status"></span>
         </div>
         <div id="map"></div>
         <div class="map__controls">
-          <button class="btn btn--ghost" id="radar-play" type="button" data-i18n="play">▶ Lecture</button>
+          <button class="btn btn--ghost" id="radar-play" type="button" data-i18n="play">▶ Play</button>
           <div class="map__timeline">
             <span class="map__time" id="radar-time">—</span>
-            <input type="range" id="radar-slider" min="0" max="1" value="1" disabled aria-label="Ligne de temps radar" data-i18n-aria="radar_slider" />
+            <input type="range" id="radar-slider" min="0" max="1" value="1" disabled aria-label="Radar timeline" data-i18n-aria="radar_slider" />
           </div>
-          <label class="map__layers sr-only" aria-hidden="true"><span data-i18n="map_title">Radar & carte</span>
-            <select id="map-layer" tabindex="-1" aria-label="Couche carte" data-i18n-aria="map_layer">
-              <option value="radar" data-i18n="layer_radar">Radar pluie (live)</option>
-              <option value="precip" data-i18n="layer_precip">Précipitation (modèle)</option>
-              <option value="temp" data-i18n="layer_temp">Température</option>
+          <label class="map__layers sr-only" aria-hidden="true"><span data-i18n="map_title">Radar &amp; map</span>
+            <select id="map-layer" tabindex="-1" aria-label="Map layer" data-i18n-aria="map_layer">
+              <option value="radar" data-i18n="layer_radar">Live rain radar</option>
+              <option value="precip" data-i18n="layer_precip">Precip (model)</option>
+              <option value="temp" data-i18n="layer_temp">Temperature</option>
               <option value="uv" data-i18n="layer_uv">UV</option>
-              <option value="humidity" data-i18n="layer_humidity">Humidité</option>
-              <option value="cloud" data-i18n="layer_cloud">Nébulosité</option>
-              <option value="pressure" data-i18n="layer_pressure">Pression</option>
-              <option value="streets" data-i18n="layer_streets">Rue</option>
+              <option value="humidity" data-i18n="layer_humidity">Humidity</option>
+              <option value="cloud" data-i18n="layer_cloud">Cloud</option>
+              <option value="pressure" data-i18n="layer_pressure">Pressure</option>
+              <option value="streets" data-i18n="layer_streets">Streets</option>
             </select>
           </label>
           <label class="map__wind" data-i18n-title="wind_arrows_title">
-            <input class="sr-only" type="checkbox" id="wind-toggle" checked aria-label="Flèches de vent" data-i18n-aria="wind_arrows_title" />
+            <input class="sr-only" type="checkbox" id="wind-toggle" checked aria-label="Wind arrows (speed + direction)" data-i18n-aria="wind_arrows_title" />
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/></svg>
           </label>
         </div>
@@ -191,13 +191,13 @@
              hidden <select> above stays the single source of truth. -->
         <div class="layer-chips" id="layer-chips" role="group" data-i18n-aria="map_layer">
           <button type="button" class="layer-chip" data-layer="radar"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-6"/></svg><span data-i18n="lc_radar">Radar</span></button>
-          <button type="button" class="layer-chip" data-layer="precip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 18 0zM12 12v7a2 2 0 0 1-4 0"/></svg><span data-i18n="lc_precip">Pluie</span></button>
+          <button type="button" class="layer-chip" data-layer="precip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 18 0zM12 12v7a2 2 0 0 1-4 0"/></svg><span data-i18n="lc_precip">Rain</span></button>
           <button type="button" class="layer-chip" data-layer="temp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 14.8V4a2 2 0 1 0-4 0v10.8a4 4 0 1 0 4 0z"/></svg><span data-i18n="lc_temp">Temp</span></button>
           <button type="button" class="layer-chip" data-layer="uv"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></svg><span data-i18n="lc_uv">UV</span></button>
           <button type="button" class="layer-chip" data-layer="humidity"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/></svg><span data-i18n="lc_humidity">Humid.</span></button>
-          <button type="button" class="layer-chip" data-layer="cloud"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a5 5 0 1 1 1-9.9A6 6 0 0 1 19.5 10 4 4 0 0 1 18 18z"/></svg><span data-i18n="lc_cloud">Nuages</span></button>
-          <button type="button" class="layer-chip" data-layer="pressure"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-6"/></svg><span data-i18n="lc_pressure">Pression</span></button>
-          <button type="button" class="layer-chip" data-layer="streets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14"/></svg><span data-i18n="lc_streets">Plan</span></button>
+          <button type="button" class="layer-chip" data-layer="cloud"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a5 5 0 1 1 1-9.9A6 6 0 0 1 19.5 10 4 4 0 0 1 18 18z"/></svg><span data-i18n="lc_cloud">Cloud</span></button>
+          <button type="button" class="layer-chip" data-layer="pressure"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-6"/></svg><span data-i18n="lc_pressure">Pressure</span></button>
+          <button type="button" class="layer-chip" data-layer="streets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14"/></svg><span data-i18n="lc_streets">Map</span></button>
         </div>
         <div class="map-legend" id="map-legend" hidden></div>
       </section>
@@ -205,41 +205,41 @@
       <!-- Confidence -->
       <section class="card">
         <div class="card__head">
-          <h2 class="card__title"><span class="tab-ic" aria-hidden="true">🎯</span><span data-i18n="conf_title">Confiance de la prévision</span></h2>
+          <h2 class="card__title"><span class="tab-ic" aria-hidden="true">🎯</span><span data-i18n="conf_title">Forecast confidence</span></h2>
           <span class="card__badge card__badge--muted" id="conf-overall"></span>
           <button class="btn btn--ghost conf-info" id="conf-info" type="button" aria-haspopup="dialog" data-i18n-title="conf_more">?</button>
         </div>
         <div class="vars" id="vars"></div>
       </section>
 
-      <!-- Sources détaillées : comment est calculée la température -->
+      <!-- Detailed sources: how the temperature is computed -->
       <section class="card" id="sources-card">
         <div class="card__head">
-          <h2 class="card__title"><span class="tab-ic" aria-hidden="true">🔬</span><span data-i18n="sources_title">Détail des sources & calcul</span></h2>
+          <h2 class="card__title"><span class="tab-ic" aria-hidden="true">🔬</span><span data-i18n="sources_title">Sources &amp; calculation detail</span></h2>
           <span class="card__badge" id="sources-badge"></span>
         </div>
         <!-- One dot per model on a temperature axis, the line is Certo: the
              agreement reads at a glance, the numbers live in the folded table. -->
         <figure class="spread" id="sources-spread" hidden>
           <div class="spread__plot" id="spread-plot"></div>
-          <figcaption class="spread__legend" data-i18n="spread_legend">1 point = 1 modèle · taille = poids · trait = Certo</figcaption>
+          <figcaption class="spread__legend" data-i18n="spread_legend">1 dot = 1 model · size = weight · line = Certo</figcaption>
         </figure>
         <div class="deep">
-          <button class="btn btn--ghost deep__btn" id="deep-btn" type="button">🔬 <span data-i18n="deep_btn">Analyse profonde</span></button>
+          <button class="btn btn--ghost deep__btn" id="deep-btn" type="button">🔬 <span data-i18n="deep_btn">Deep analysis</span></button>
           <span class="deep__status" id="deep-status"></span>
         </div>
         <div class="tablewrap" id="learn-wrap" hidden>
           <table class="table" id="learn-table">
-            <thead><tr><th data-i18n="th_src">Source</th><th data-i18n="th_n">Mesures</th><th data-i18n="th_learn_bias">Biais appris</th><th data-i18n="th_learn_rmse">Erreur</th><th data-i18n="th_weight">Poids</th></tr></thead>
+            <thead><tr><th data-i18n="th_src">Source</th><th data-i18n="th_n">Samples</th><th data-i18n="th_learn_bias">Learned bias</th><th data-i18n="th_learn_rmse">Error</th><th data-i18n="th_weight">Weight</th></tr></thead>
             <tbody id="learn-body"></tbody>
           </table>
-          <p class="card__hint" data-i18n="deep_hint">Vérité = analyse des 14 derniers jours. Les biais appris corrigent les prévisions suivantes ; les poids suivent la fiabilité historique.</p>
+          <p class="card__hint" data-i18n="deep_hint">Truth = last 14 days of analysis. Learned biases correct forecasts; weights follow reliability.</p>
         </div>
         <details class="fold">
-          <summary><span data-i18n="sources_table">Tableau des sources</span><span class="chevron" aria-hidden="true">▾</span></summary>
+          <summary><span data-i18n="sources_table">Sources table</span><span class="chevron" aria-hidden="true">▾</span></summary>
         <div class="tablewrap">
           <table class="table" id="sources-table">
-            <thead><tr><th data-i18n="th_src">Source</th><th data-i18n="th_raw">Brut</th><th data-i18n="th_bias">Biais</th><th data-i18n="th_corr">Corrigé</th><th data-i18n="th_weight">Poids</th><th data-i18n="th_share">Part</th></tr></thead>
+            <thead><tr><th data-i18n="th_src">Source</th><th data-i18n="th_raw">Raw</th><th data-i18n="th_bias">Bias</th><th data-i18n="th_corr">Fixed</th><th data-i18n="th_weight">Weight</th><th data-i18n="th_share">Share</th></tr></thead>
             <tbody id="sources-body"></tbody>
           </table>
         </div>
@@ -249,24 +249,24 @@
       <!-- Hourly table: 10 columns overflow a phone, folded like the hourly cards -->
       <details class="card hourscard" id="tablecard">
         <summary>
-          <span class="tab-ic" aria-hidden="true">📊</span><span class="card__title" data-i18n="table_title">Détail horaire</span>
-          <span class="card__badge card__badge--muted" data-i18n="tz_note">heure locale</span>
+          <span class="tab-ic" aria-hidden="true">📊</span><span class="card__title" data-i18n="table_title">Detailed table</span>
+          <span class="card__badge card__badge--muted" data-i18n="tz_note">local time</span>
           <span class="chevron" aria-hidden="true">▾</span>
         </summary>
         <div class="tablewrap tablecard__wrap">
           <table class="table">
             <thead>
               <tr>
-                <th data-i18n="th_hour">Heure</th>
+                <th data-i18n="th_hour">Hour</th>
                 <th data-i18n="th_temp">Temp</th>
-                <th data-i18n="th_dew">Pt rosée</th>
-                <th data-i18n="th_rain">Pluie (prob.)</th>
-                <th data-i18n="th_wind">Vent</th>
-                <th data-i18n="th_gust">Rafales</th>
+                <th data-i18n="th_dew">Dew pt</th>
+                <th data-i18n="th_rain">Rain (prob.)</th>
+                <th data-i18n="th_wind">Wind</th>
+                <th data-i18n="th_gust">Gusts</th>
                 <th data-i18n="th_hum">Humid</th>
-                <th data-i18n="th_cloud">Nébulo</th>
-                <th data-i18n="th_press">Pression</th>
-                <th data-i18n="th_vis">Visibilité</th>
+                <th data-i18n="th_cloud">Cloud</th>
+                <th data-i18n="th_press">Pressure</th>
+                <th data-i18n="th_vis">Visibility</th>
               </tr>
             </thead>
             <tbody id="table-body"></tbody>
@@ -282,29 +282,29 @@
 
   <!-- What the confidence % means (opened from the hero badge and the card) -->
   <dialog class="sheet" id="conf-sheet" aria-labelledby="conf-sheet-title">
-    <h2 class="sheet__title" id="conf-sheet-title" data-i18n="conf_sheet_title">La confiance, c'est quoi ?</h2>
-    <p data-i18n="conf_sheet_p1"></p>
-    <p data-i18n="conf_sheet_p2"></p>
-    <p data-i18n="conf_sheet_p3"></p>
-    <p data-i18n="conf_sheet_p4"></p>
-    <form method="dialog"><button class="btn btn--primary sheet__close" data-i18n="conf_sheet_close">Compris</button></form>
+    <h2 class="sheet__title" id="conf-sheet-title" data-i18n="conf_sheet_title">What is confidence?</h2>
+    <p data-i18n="conf_sheet_p1">It is the probability that the real value stays close to the forecast, within a per-variable tolerance (e.g. ±2 °C for temperature).</p>
+    <p data-i18n="conf_sheet_p2">It is calibrated: Certo checks its past forecasts against what really happened (weather stations, then 3 months of reanalysis). A 90% confidence is right about 9 times out of 10.</p>
+    <p data-i18n="conf_sheet_p3">Not to be confused with the chance of rain: "Rain from 05:00 · 85% chance" says whether it will rain, confidence says how reliable the forecast is.</p>
+    <p data-i18n="conf_sheet_p4">"uncal." (uncalibrated): not enough history yet to check this variable here. The percentage then only reflects agreement between models, which is less reliable.</p>
+    <form method="dialog"><button class="btn btn--primary sheet__close" data-i18n="conf_sheet_close">Got it</button></form>
   </dialog>
 
   <!-- Settings (Android app only: native features) -->
   <dialog class="sheet" id="settings-sheet" aria-labelledby="settings-sheet-title">
-    <h2 class="sheet__title" id="settings-sheet-title" data-i18n="settings">Réglages</h2>
+    <h2 class="sheet__title" id="settings-sheet-title" data-i18n="settings">Settings</h2>
     <label class="setting">
       <span class="setting__text">
-        <span class="setting__label" data-i18n="set_notif">Météo actuelle dans la barre de notifications</span>
-        <span class="setting__hint" data-i18n="set_notif_hint"></span>
+        <span class="setting__label" data-i18n="set_notif">Current weather in the notification bar</span>
+        <span class="setting__hint" data-i18n="set_notif_hint">Temperature next to the clock, details in the shade and on the lock screen. Updated with the widget, every 15 min.</span>
       </span>
       <input type="checkbox" class="setting__switch" id="set-notif" role="switch">
     </label>
     <p class="setting__warn" id="set-notif-blocked" hidden>
-      <span data-i18n="set_notif_blocked"></span>
-      <button class="btn btn--ghost" id="set-notif-open" type="button" data-i18n="set_notif_open">Ouvrir les réglages Android</button>
+      <span data-i18n="set_notif_blocked">Certo's notifications are blocked in Android.</span>
+      <button class="btn btn--ghost" id="set-notif-open" type="button" data-i18n="set_notif_open">Open Android settings</button>
     </p>
-    <form method="dialog"><button class="btn btn--primary sheet__close" data-i18n="set_close">Fermer</button></form>
+    <form method="dialog"><button class="btn btn--primary sheet__close" data-i18n="set_close">Close</button></form>
   </dialog>
 
   <script src="/static/vendor/leaflet/leaflet.js" defer></script>

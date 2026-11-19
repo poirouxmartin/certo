@@ -26,6 +26,7 @@ const I18N = {
     update_available: "Nouvelle version {v} disponible",
     update_download: "Installer",
     update_progress: "Téléchargement… {p} %",
+    pct: "{p} %",
     settings: "Réglages",
     set_notif: "Météo actuelle dans la barre de notifications",
     set_notif_hint: "Température à côté de l'heure, détail dans le volet et sur l'écran verrouillé. Mise à jour avec le widget, toutes les 15 min.",
@@ -169,6 +170,19 @@ const I18N = {
     lang_title: "Langue : français / anglais",
     radar_slider: "Ligne de temps radar",
     map_layer: "Couche de carte",
+    locale: "fr-FR",
+    sure_badge: "sûr 98%+",
+    day_unit: "j",
+    model_tag: " (modèle)",
+    fav_empty: "Aucun favori — cliquez sur ☆ pour enregistrer un lieu",
+    rain_pct: "pluie {p}%",
+    sources_badge: "{n} sources · {t}",
+    install_short: "⬇ Installer",
+    mini_missing: "Lieu manquant (?lat=&lon=)",
+    mini_day: "min {lo}° / max {hi}° sur 24 h",
+    mini_sure: "✓ sûr à 98 %+",
+    mini_conf: "fiable à {c} %",
+    mini_upd: "{n} station(s) · maj {t}",
   },
   en: {
     tagline: "sure weather",
@@ -196,6 +210,7 @@ const I18N = {
     update_available: "New version {v} available",
     update_download: "Install",
     update_progress: "Downloading… {p}%",
+    pct: "{p}%",
     settings: "Settings",
     set_notif: "Current weather in the notification bar",
     set_notif_hint: "Temperature next to the clock, details in the shade and on the lock screen. Updated with the widget, every 15 min.",
@@ -339,6 +354,19 @@ const I18N = {
     lang_title: "Language: French / English",
     radar_slider: "Radar timeline",
     map_layer: "Map layer",
+    locale: "en-GB",
+    sure_badge: "sure 98%+",
+    day_unit: "d",
+    model_tag: " (model)",
+    fav_empty: "No favorites yet — tap ☆ to save a place",
+    rain_pct: "rain {p}%",
+    sources_badge: "{n} sources · {t}",
+    install_short: "⬇ Install",
+    mini_missing: "Missing place (?lat=&lon=)",
+    mini_day: "min {lo}° / max {hi}° over 24 h",
+    mini_sure: "✓ sure at 98%+",
+    mini_conf: "{c}% reliable",
+    mini_upd: "{n} station(s) · updated {t}",
   },
 };
 
@@ -349,7 +377,7 @@ let LANG = localStorage.getItem("sure-weather-lang")
 if (!I18N[LANG]) LANG = "en";
 
 function tr(key, vars) {
-  let s = I18N[LANG][key] ?? I18N.fr[key] ?? key;
+  let s = I18N[LANG][key] ?? I18N.en[key] ?? key;
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, v);
   return s;
 }

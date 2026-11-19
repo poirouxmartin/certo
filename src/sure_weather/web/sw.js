@@ -97,7 +97,9 @@ self.addEventListener("fetch", (e) => {
 });
 
 self.addEventListener("push", (e) => {
-  let data = { title: "Certo", body: "Mise à jour météo" };
+  // Fallback only: the server always sends a title and body. No i18n.js in
+  // the worker, so it stays in the default UI language (English).
+  let data = { title: "Certo", body: "Weather update" };
   try { data = e.data.json(); } catch {}
   e.waitUntil(
     self.registration.showNotification(data.title || "Certo", {

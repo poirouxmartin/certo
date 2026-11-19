@@ -7,7 +7,7 @@
   async function load() {
     try {
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        document.getElementById("name").textContent = "Lieu manquant (?lat=&lon=)";
+        document.getElementById("name").textContent = tr("mini_missing");
         return;
       }
       const r = await fetch(`/now?lat=${lat}&lon=${lon}`);
@@ -21,11 +21,11 @@
       document.getElementById("range").textContent = `↑${s.tmax}° ↓${s.tmin}°`;
       document.getElementById("detail").textContent =
         `☔ ${s.rain_probability !== null ? Math.round(s.rain_probability) + "%" : "—"} · 💨 ${s.wind_kmh ?? "—"} km/h · 💧 ${s.rain_24h_mm} mm`;
-      document.getElementById("day").textContent = `min ${s.tmin}° / max ${s.tmax}° sur 24 h`;
+      document.getElementById("day").textContent = tr("mini_day", { lo: s.tmin, hi: s.tmax });
       const conf = Math.round((s.confidence || 0) * 100);
-      document.getElementById("conf").textContent = s.sure ? "✓ sûr à 98 %+" : `fiable à ${conf} %`;
+      document.getElementById("conf").textContent = s.sure ? tr("mini_sure") : tr("mini_conf", { c: conf });
       document.getElementById("upd").textContent =
-        `${s.stations} station(s) · maj ${new Date(s.updated_at).toLocaleTimeString("fr-FR")}`;
+        tr("mini_upd", { n: s.stations, t: new Date(s.updated_at).toLocaleTimeString(tr("locale")) });
     } catch { /* keep last values */ }
   }
   load();

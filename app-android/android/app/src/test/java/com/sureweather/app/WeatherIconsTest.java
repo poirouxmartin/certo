@@ -11,7 +11,7 @@ import java.util.List;
 public class WeatherIconsTest {
 
     private static String icon(int code, double mm, double prob, double cloud) {
-        return WeatherIcons.condition(code, mm, prob, cloud)[0];
+        return WeatherIcons.condition(code, mm, prob, cloud).icon;
     }
 
     @Test
@@ -27,7 +27,7 @@ public class WeatherIconsTest {
         assertEquals("🌦️", icon(61, 0.1, 70, 90)); // probable: light rain
         assertEquals("🌦️", icon(80, 0.4, 30, 90));
         assertEquals("🌧️", icon(63, 2.5, 90, 100));
-        assertEquals("Averses", WeatherIcons.condition(81, 3, 80, 100)[1]);
+        assertEquals(R.string.cond_showers, WeatherIcons.condition(81, 3, 80, 100).label);
     }
 
     @Test
@@ -39,7 +39,7 @@ public class WeatherIconsTest {
     public void nonRainCodesAreUntouched() {
         assertEquals("❄️", icon(71, 0.0, 10, 100));
         assertEquals("⛈️", icon(95, 0.0, 10, 100));
-        assertEquals("Bruine verglaçante", WeatherIcons.condition(56, 0.0, 0, 100)[1]);
+        assertEquals(R.string.cond_freezing_drizzle, WeatherIcons.condition(56, 0.0, 0, 100).label);
         assertEquals("☀️", icon(0, 0.0, 0, 0));
     }
 

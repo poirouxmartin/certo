@@ -1,0 +1,47 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- French translation of values/strings.xml: same keys, original wording. -->
+<resources>
+    <string name="widget_desc">Certo — température actuelle du dernier lieu consulté</string>
+
+    <string name="cond_clear">Dégagé</string>
+    <string name="cond_mostly_clear">Peu nuageux</string>
+    <string name="cond_partly_cloudy">Partiellement nuageux</string>
+    <string name="cond_cloudy">Nuageux</string>
+    <string name="cond_overcast">Couvert</string>
+    <string name="cond_fog">Brouillard</string>
+    <string name="cond_drizzle">Bruine</string>
+    <string name="cond_freezing_drizzle">Bruine verglaçante</string>
+    <string name="cond_light_rain">Pluie faible</string>
+    <string name="cond_rain">Pluie</string>
+    <string name="cond_freezing_rain">Pluie verglaçante</string>
+    <string name="cond_showers">Averses</string>
+    <string name="cond_snow">Neige</string>
+    <string name="cond_thunder">Orage</string>
+    <string name="cond_thunder_hail">Orage grêle</string>
+
+    <string name="hour_label">%1$sh</string>
+    <string name="widget_rain_at">Pluie %1$s</string>
+    <string name="widget_rain_around">Pluie ~%1$s</string>
+    <string name="widget_dry_12h">Sec 12h</string>
+
+    <string name="radar_tag_observed">radar</string>
+    <string name="radar_tag_forecast">prévision</string>
+
+    <string name="notif_channel_name">Météo actuelle</string>
+    <string name="notif_channel_desc">Température dans la barre d\'état, météo et prochaines heures dans les notifications et sur l\'écran verrouillé</string>
+    <string name="err_settings_unavailable">Réglages Android indisponibles</string>
+    <string name="err_notif_denied">Notifications refusées : autorisez-les dans les réglages Android</string>
+
+    <string name="upd_app_not_found">Application introuvable</string>
+    <string name="upd_bad_url">Source de mise à jour refusée</string>
+    <string name="upd_failed">Mise à jour impossible : %1$s</string>
+    <string name="upd_download_failed">Téléchargement impossible : %1$s</string>
+    <string name="upd_bad_apk">Fichier de mise à jour invalide</string>
+    <string name="upd_not_newer">Cette version n\'est pas plus récente que celle installée</string>
+    <string name="upd_need_permission">Autorise l\'installation depuis Certo, puis touche à nouveau Installer</string>
+
+    <string name="upd_channel_name">Mises à jour de l\'appli</string>
+    <string name="upd_channel_desc">Te prévient quand une nouvelle version de Certo est disponible</string>
+    <string name="upd_notif_title">Mise à jour disponible : v%1$s</string>
+    <string name="upd_notif_text">Touche pour ouvrir Certo et l\'installer</string>
+</resources>

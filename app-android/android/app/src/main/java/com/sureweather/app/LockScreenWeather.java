@@ -86,12 +86,12 @@ final class LockScreenWeather {
          * Created on every post: re-creating an existing channel only
          * updates its name and description (1.6.3 named it after the lock
          * screen alone); the user's own channel settings are kept. */
-        NotificationChannel ch = new NotificationChannel(CHANNEL, "Météo actuelle",
+        NotificationChannel ch = new NotificationChannel(CHANNEL, ctx.getString(R.string.notif_channel_name),
                 NotificationManager.IMPORTANCE_DEFAULT);
         ch.setSound(null, null);
         ch.enableVibration(false);
         ch.enableLights(false);
-        ch.setDescription("Température dans la barre d'état, météo et prochaines heures dans les notifications et sur l'écran verrouillé");
+        ch.setDescription(ctx.getString(R.string.notif_channel_desc));
         ch.setShowBadge(false);
         ch.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
         m.createNotificationChannel(ch);
@@ -139,7 +139,7 @@ final class LockScreenWeather {
             // most weather apps do (Martin, Nov 2026). Bitmap small icons need
             // API 23; older phones keep the Certo logo.
             if (Build.VERSION.SDK_INT >= 23) b.setSmallIcon(IconCompat.createWithBitmap(tempIcon(temp)));
-            // "when" = time of the DATA: the shade shows its age ("il y a 40 min").
+            // "when" = time of the DATA: the shade shows its age ("40 min ago").
             if (fetchedAt > 0) b.setWhen(fetchedAt);
             NotificationManagerCompat.from(ctx).notify(NOTIF_ID, b.build());
         } catch (SecurityException e) {
@@ -149,7 +149,7 @@ final class LockScreenWeather {
         }
     }
 
-    /** "15h ☀️ 13° · 16h 🌦️ 12° 💧60%" (rain only where the widget shows it). */
+    /** "15:00 ☀️ 13° · 16:00 🌦️ 12° 💧60%" (rain only where the widget shows it). */
     static String hoursLine(List<JSONObject> hours) {
         StringBuilder sb = new StringBuilder();
         for (JSONObject h : hours) {

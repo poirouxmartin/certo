@@ -1,8 +1,63 @@
 <?xml version='1.0' encoding='utf-8'?>
+<!-- English is the default UI language (Martin, 2026-11-19); French lives in
+     values-fr/ and is picked from the device locale. Every user-visible native
+     string goes here; tests/test_i18n.py checks both files stay in sync. -->
 <resources>
-    <string name="app_name">Certo</string>
-    <string name="title_activity_main">Certo</string>
-    <string name="package_name">com.sureweather.app</string>
-    <string name="custom_url_scheme">com.sureweather.app</string>
-    <string name="widget_desc">Certo — température actuelle du dernier lieu consulté</string>
+    <string name="app_name" translatable="false">Certo</string>
+    <string name="title_activity_main" translatable="false">Certo</string>
+    <string name="package_name" translatable="false">com.sureweather.app</string>
+    <string name="custom_url_scheme" translatable="false">com.sureweather.app</string>
+    <string name="widget_desc">Certo: current weather of the last place you looked up</string>
+    <!-- Place shown by the widget picker preview (previewLayout) before any bind -->
+    <string name="widget_preview_place" translatable="false">Paris</string>
+
+    <!-- Weather conditions (widget, lock-screen notification) -->
+    <string name="cond_clear">Clear</string>
+    <string name="cond_mostly_clear">Mostly clear</string>
+    <string name="cond_partly_cloudy">Partly cloudy</string>
+    <string name="cond_cloudy">Cloudy</string>
+    <string name="cond_overcast">Overcast</string>
+    <string name="cond_fog">Fog</string>
+    <string name="cond_drizzle">Drizzle</string>
+    <string name="cond_freezing_drizzle">Freezing drizzle</string>
+    <string name="cond_light_rain">Light rain</string>
+    <string name="cond_rain">Rain</string>
+    <string name="cond_freezing_rain">Freezing rain</string>
+    <string name="cond_showers">Showers</string>
+    <string name="cond_snow">Snow</string>
+    <string name="cond_thunder">Thunderstorm</string>
+    <string name="cond_thunder_hail">Thunderstorm, hail</string>
+
+    <!-- Widget hour column, %1$s = two-digit hour of the place -->
+    <string name="hour_label">%1$s:00</string>
+    <!-- Next rain, %1$s = "14:35" -->
+    <string name="widget_rain_at">Rain %1$s</string>
+    <!-- Next rain at hourly precision, %1$s = hour_label -->
+    <string name="widget_rain_around">Rain ~%1$s</string>
+    <string name="widget_dry_12h">Dry 12h</string>
+
+    <!-- Tags drawn on the widget radar frames -->
+    <string name="radar_tag_observed">radar</string>
+    <string name="radar_tag_forecast">forecast</string>
+
+    <!-- Lock-screen weather notification -->
+    <string name="notif_channel_name">Current weather</string>
+    <string name="notif_channel_desc">Temperature in the status bar, weather and next hours in notifications and on the lock screen</string>
+    <string name="err_settings_unavailable">Android settings unavailable</string>
+    <string name="err_notif_denied">Notifications denied: allow them in Android settings</string>
+
+    <!-- In-app updater -->
+    <string name="upd_app_not_found">App not found</string>
+    <string name="upd_bad_url">Update source refused</string>
+    <string name="upd_failed">Update failed: %1$s</string>
+    <string name="upd_download_failed">Download failed: %1$s</string>
+    <string name="upd_bad_apk">Invalid update file</string>
+    <string name="upd_not_newer">This version is not newer than the installed one</string>
+    <string name="upd_need_permission">Allow installs from Certo, then tap Install again</string>
+
+    <!-- Update notification (UpdateCheckJob), %1$s = "1.6.6" -->
+    <string name="upd_channel_name">App updates</string>
+    <string name="upd_channel_desc">Tells you when a new version of Certo is available</string>
+    <string name="upd_notif_title">Update available: v%1$s</string>
+    <string name="upd_notif_text">Tap to open Certo and install it</string>
 </resources>

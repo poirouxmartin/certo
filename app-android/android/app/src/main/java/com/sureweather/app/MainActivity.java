@@ -37,6 +37,8 @@ public class MainActivity extends BridgeActivity {
         } catch (Throwable t) {
             android.util.Log.w(WeatherWidget.TAG, "schedulePeriodic failed: " + t);
         }
+        UpdateCheckJob.schedulePeriodic(this); // idempotent, update notification heartbeat
+        UpdateCheckJob.clearIfInstalled(this);
         /* The WebView renderer runs in its own process, which Android kills under
          * memory pressure (radar map tiles are the heaviest part of the page).
          * Unhandled, Chromium then kills the whole app: "Render process kill (OOM
@@ -120,6 +122,12 @@ public class MainActivity extends BridgeActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         maybePinWidget(intent);
+        /* Update notification tapped while the app was already open: the banner
+         * is decided once per page load (checkAppUpdate in app.js), so reload
+         * to run that check again and show it. A cold start runs it anyway. */
+        if (intent != null && UpdateCheckJob.ACTION_OPEN_UPDATE.equals(intent.getAction())) {
+            try { bridge.getWebView().reload(); } catch (Throwable ignored) {}
+        }
     }
 
     /** "Add the widget" system prompt (API 26+), e.g. `adb shell am start -a

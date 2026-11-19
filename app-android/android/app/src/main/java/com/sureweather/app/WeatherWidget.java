@@ -570,7 +570,7 @@ public class WeatherWidget extends AppWidgetProvider {
         JSONObject cur = root.getJSONObject("current");
         // current.precipitation covers the preceding 15 min: x4 for mm/h.
         double curMm = cur.has("precipitation") ? cur.optDouble("precipitation", Double.NaN) * 4.0 : Double.NaN;
-        String[] cond = WeatherIcons.condition(cur.optInt("weather_code", 3), curMm, Double.NaN,
+        WeatherIcons.Condition cond = WeatherIcons.condition(cur.optInt("weather_code", 3), curMm, Double.NaN,
                 cur.optDouble("cloud_cover", Double.NaN));
         String minStart = null; // "14:35" of next rain at 15-min precision
         // 15-min rain start (best single-model series available).
@@ -607,7 +607,7 @@ public class WeatherWidget extends AppWidgetProvider {
         } catch (Exception ignored) {}
 
         JSONArray hoursOut = new JSONArray();
-        String rainTxt = minStart != null ? "Pluie " + minStart : "";
+        String rainTxt = minStart != null ? ctx.getString(R.string.widget_rain_at, minStart) : "";
         JSONObject hourly = root.optJSONObject("hourly");
         if (hourly != null) {
             JSONArray times = hourly.optJSONArray("time");
@@ -647,9 +647,9 @@ public class WeatherWidget extends AppWidgetProvider {
                     }
                     JSONObject ho = new JSONObject();
                     try { ho.put("ts", hourFmt.parse(ts.substring(0, 16)).getTime()); } catch (Exception ignored) {}
-                    ho.put("t", ts.substring(11, 13) + "h");
+                    ho.put("t", ctx.getString(R.string.hour_label, ts.substring(11, 13)));
                     ho.put("icon", WeatherIcons.condition(codes != null ? codes.optInt(start + h, 3) : 3,
-                            mm, prob, cloud)[0]);
+                            mm, prob, cloud).icon);
                     ho.put("temp", String.valueOf(Math.round(temp)) + "°");
                     // Low chances are noise on a glance widget: blank under RAIN_SHOWN_PROB.
                     ho.put("rain", prob >= RAIN_SHOWN_PROB ? "💧" + Math.round(prob) + "%" : "");
@@ -658,13 +658,14 @@ public class WeatherWidget extends AppWidgetProvider {
                     hoursOut.put(ho);
                 }
                 // Next rain sentence: 15-min precision when available
-                // ("Pluie 14:35"), else hourly fallback ("Pluie ~15h" / "Sec 12h").
+                // ("Rain 14:35"), else hourly fallback ("Rain ~15:00" / "Dry 12h").
                 if (minStart == null && count > 1) {
-                    rainTxt = "Sec 12h";
+                    rainTxt = ctx.getString(R.string.widget_dry_12h);
                     for (int i = 1; i < count; i++) {
                         String ts = times.optString(start + i, "");
                         if (probs != null && probs.optDouble(start + i, 0) >= 50 && ts.length() >= 13) {
-                            rainTxt = "Pluie ~" + ts.substring(11, 13) + "h";
+                            rainTxt = ctx.getString(R.string.widget_rain_around,
+                                    ctx.getString(R.string.hour_label, ts.substring(11, 13)));
                             break;
                         }
                     }
@@ -675,15 +676,16 @@ public class WeatherWidget extends AppWidgetProvider {
         // `when` = time of the DATA: kept as is when a later fetch fails, so
         // staleness stays visible.
         Date now = new Date();
-        String when = new SimpleDateFormat("EEE d MMM", Locale.FRENCH).format(now)
+        // Device locale: "Thu 19 Nov" in English, "jeu. 19 nov." in French.
+        String when = new SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(now)
                 + " · " + new SimpleDateFormat("HH:mm", Locale.getDefault()).format(now);
         JSONObject st = new JSONObject();
         st.put("lat", pl.lat);
         st.put("lon", pl.lon);
         st.put("name", pl.name);
         st.put("temp", String.valueOf(Math.round(cur.getDouble("temperature_2m"))) + "°");
-        st.put("icon", cond[0]);
-        st.put("desc", cond[1]);
+        st.put("icon", cond.icon);
+        st.put("desc", cond.label != 0 ? ctx.getString(cond.label) : "");
         st.put("rain", rainTxt);
         st.put("when", when);
         st.put("fetchedAt", now.getTime());
@@ -775,9 +777,11 @@ public class WeatherWidget extends AppWidgetProvider {
             boolean forecast = i >= radars.size();
             Bitmap bm = forecast
                     ? rainFrame(crop, null, left, top, fGrids.get(i - radars.size()),
-                            hhmm(fTimes.get(i - radars.size())), true, i, total, fs.nowIdx)
+                            hhmm(fTimes.get(i - radars.size())), true, i, total, fs.nowIdx,
+                            ctx.getString(R.string.radar_tag_forecast))
                     : rainFrame(crop, radars.get(i), left, top, null,
-                            hhmm(radarTimes.get(i)), false, i, total, fs.nowIdx);
+                            hhmm(radarTimes.get(i)), false, i, total, fs.nowIdx,
+                            ctx.getString(R.string.radar_tag_observed));
             // Unique names: ImageView.setImageURI ignores a URI equal to the current one.
             String name = "f_" + stamp + "_" + i + ".png";
             // Cancelled by the caller's deadline: stop here so no orphan PNG is left behind.
@@ -1007,7 +1011,8 @@ public class WeatherWidget extends AppWidgetProvider {
      * tick on the "now" frame. Forecast frames also get an amber border so they
      * are never mistaken for observations. */
     static Bitmap rainFrame(Bitmap base, Bitmap radar, int left, int top, double[][] mm,
-                            String label, boolean forecast, int idx, int total, int nowIdx) {
+                            String label, boolean forecast, int idx, int total, int nowIdx,
+                            String tagText) {
         final int S = 420;
         final float k = S / 360f; // drawing constants below were tuned at 360
         Bitmap frame = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888);
@@ -1049,7 +1054,7 @@ public class WeatherWidget extends AppWidgetProvider {
         tag.setTextSize(21f * k);
         tag.setFakeBoldText(true);
         tag.setShadowLayer(4f * k, 1f * k, 1f * k, 0xCC000000);
-        c.drawText(forecast ? "prévision" : "radar", 13f * k, 63f * k, tag);
+        c.drawText(tagText, 13f * k, 63f * k, tag);
         // Progress, under the label (next to the time it counts): filled up to this frame, white for observed / amber for
         // forecast, plus a tick where "now" is.
         final float bx0 = 13f * k, bx1 = S - 13f * k;

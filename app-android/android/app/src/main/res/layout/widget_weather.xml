@@ -10,9 +10,9 @@
     android:paddingBottom="8dp"
     android:background="@drawable/widget_bg">
 
-    <!-- Lieu + horodate. Le ⟳ (32 dp) est passé sur la carte : dans cette
-         ligne il imposait 32 dp de haut pour un texte de ~21, et à police
-         1,15 la ligne du vent sortait par le bas (Pixel 8, 15 nov. 2026). -->
+    <!-- Place + timestamp. The ⟳ (32 dp) moved onto the map: in this row
+         it forced 32 dp of height for ~21 dp of text, and at font scale 1.15
+         the wind row fell off the bottom (Pixel 8, 15 Nov 2026). -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -24,7 +24,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Paris"
+            android:text="@string/widget_preview_place"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="#FFFFFF"
@@ -49,8 +49,8 @@
             android:shadowRadius="2" />
     </LinearLayout>
 
-    <!-- Infos à gauche, carte à droite ; la ligne prend toute la hauteur restante
-         (sinon une bande vide reste en bas du widget 2 lignes) -->
+    <!-- Info on the left, map on the right; the row takes all the remaining height
+         (else an empty band stays at the bottom of the 2-row widget) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -65,7 +65,7 @@
             android:orientation="vertical"
             android:layout_marginEnd="6dp">
 
-            <!-- Maintenant : icône + temp, puis description et résumé pluie en colonne -->
+            <!-- Now: icon + temp, then description and rain summary in a column -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -133,8 +133,8 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Heures suivantes : heure, icône, temp, pluie (vide sous 20 %), vent ;
-                 occupe la hauteur restante, centrée -->
+            <!-- Next hours: hour, icon, temp, rain (blank under 20 %), wind;
+                 takes the remaining height, centred -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
@@ -188,7 +188,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Carte radar : 140 dp de large, hauteur libre (images non déformées, fitCenter) -->
+        <!-- Radar map: 140 dp wide, free height (images not stretched, fitCenter) -->
         <FrameLayout
             android:layout_width="140dp"
             android:layout_height="match_parent"

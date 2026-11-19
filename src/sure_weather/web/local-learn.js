@@ -146,7 +146,7 @@ window.SureLearn = (() => {
       `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}` +
       `&hourly=${vars.join(",")}&past_days=14&forecast_days=1&wind_speed_unit=ms&timezone=UTC`;
     const r = await fetch(url, { signal });
-    if (!r.ok) throw new Error(`analyse: erreur ${r.status}`);
+    if (!r.ok) throw new Error(`analysis: error ${r.status}`);
     const data = await r.json();
     const h = data.hourly || {};
     const truth = {}; // validISO -> {var: value}

@@ -47,10 +47,13 @@ app-android/android/app/src/main/java/com/sureweather/app/*
 !app-android/android/app/src/main/java/com/sureweather/app/LockScreenPlugin.java
 !app-android/android/app/src/main/java/com/sureweather/app/RadarFrames.java
 !app-android/android/app/src/main/java/com/sureweather/app/RadarPalette.java
+!app-android/android/app/src/main/java/com/sureweather/app/UpdateCheck.java
+!app-android/android/app/src/main/java/com/sureweather/app/UpdateCheckJob.java
 app-android/android/app/src/main/res/*
 !app-android/android/app/src/main/res/anim
 !app-android/android/app/src/main/res/layout
 !app-android/android/app/src/main/res/values
+!app-android/android/app/src/main/res/values-fr
 !app-android/android/app/src/main/res/xml
 !app-android/android/app/src/main/res/drawable
 !app-android/android/app/src/main/res/mipmap-mdpi
