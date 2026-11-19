@@ -37,7 +37,9 @@ public class MainActivity extends BridgeActivity {
         } catch (Throwable t) {
             android.util.Log.w(WeatherWidget.TAG, "schedulePeriodic failed: " + t);
         }
-        UpdateCheckJob.schedulePeriodic(this); // idempotent, update notification heartbeat
+        // Update notification disabled in 1.6.8: Play Protect flagged 1.6.7 as
+        // harmful with it (see UpdateCheckJob). Drop the job 1.6.7 persisted.
+        UpdateCheckJob.cancelPeriodic(this);
         UpdateCheckJob.clearIfInstalled(this);
         /* The WebView renderer runs in its own process, which Android kills under
          * memory pressure (radar map tiles are the heaviest part of the page).

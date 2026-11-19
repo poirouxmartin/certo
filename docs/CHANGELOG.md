@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.8 (2026-11-19)
+
+### App
+
+- Update notification switched off: Google Play Protect blocked 1.6.7 as
+  harmful because of it. The in-app update banner is unchanged.
+
 ## 1.6.7 (2026-11-19)
 
 ### App

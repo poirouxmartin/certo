@@ -33,6 +33,12 @@ import java.nio.charset.StandardCharsets;
  *
  * JobScheduler rather than WorkManager: same pattern as WidgetRefreshJob, and
  * no new dependency in the APK.
+ *
+ * DISABLED since 1.6.8 (service not declared in the manifest, never scheduled):
+ * Play Protect's cloud scan rated 1.6.7 POTENTIALLY_UNWANTED / generic_malware
+ * and blocked the in-app update, while the same build without this job got a
+ * clean verdict (emulator, 19 Nov 2026). A background download check that
+ * nags to install an APK reads as a dropper. Rework before re-enabling.
  */
 public class UpdateCheckJob extends JobService {
 
@@ -61,6 +67,15 @@ public class UpdateCheckJob extends JobService {
             js.schedule(b.build());
         } catch (Throwable e) {
             android.util.Log.w(WeatherWidget.TAG, "update check schedule failed: " + e);
+        }
+    }
+
+    static void cancelPeriodic(Context context) {
+        try {
+            JobScheduler js = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+            if (js != null) js.cancel(PERIODIC_ID);
+        } catch (Throwable e) {
+            android.util.Log.w(WeatherWidget.TAG, "update check cancel failed: " + e);
         }
     }
 
@@ -98,7 +113,10 @@ public class UpdateCheckJob extends JobService {
         String latest = UpdateCheck.parseVersion(fetch(VERSION_URL));
         String installed = installedVersion(ctx);
         SharedPreferences p = prefs(ctx);
-        if (!UpdateCheck.shouldNotify(latest, installed, p.getString(KEY_NOTIFIED, null))) return;
+        String notified = p.getString(KEY_NOTIFIED, null);
+        android.util.Log.i(WeatherWidget.TAG, "update check: latest=" + latest
+                + " installed=" + installed + " notified=" + notified);
+        if (!UpdateCheck.shouldNotify(latest, installed, notified)) return;
         ensureChannel(ctx);
         if (!canPost(ctx)) return; // not remembered: posted once notifications are allowed again
         notifyUpdate(ctx, latest);

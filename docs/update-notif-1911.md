@@ -48,3 +48,11 @@ dependency in the APK.
 - `pytest tests/test_i18n.py`: 7 passed (EN/FR string files in sync).
 - `gradlew assembleDebug`: BUILD SUCCESSFUL.
 - Not run on an emulator or phone in this session.
+
+## Status (1.6.8)
+
+Shipped in 1.6.7, then disabled in 1.6.8: Google Play Protect's cloud scan
+rated 1.6.7 POTENTIALLY_UNWANTED (generic_malware) and blocked the in-app
+update, while the same build without the job got a clean verdict (emulator,
+19 Nov 2026). The service is no longer declared in the manifest and the app
+cancels the job 1.6.7 scheduled. The code stays in place for a rework.
