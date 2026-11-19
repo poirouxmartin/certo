@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.7 (2026-11-19)
+
+### App
+
+- English is the default language; French follows the phone's language.
+- Notification when a new version is available (checked every 6 h).
+- Sharper radar: 512 px frames, colours read against the mm/h legend,
+  faint echoes that are not rain dropped (map and widget).
+
 ## 1.6.6 (2026-11-18)
 
 ### App
