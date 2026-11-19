@@ -2,7 +2,7 @@
 
 ## Description
 
-App météo multi-fournisseurs avec un système de confiance par provider pour une estimation finale précise. Cross-référencement de sources multiples incluant des stations météo locales.
+Multi-provider weather app with a per-provider confidence system for a precise final estimate. Cross-references multiple sources, including local weather stations.
 
 ## Stack
 
