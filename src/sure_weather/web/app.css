@@ -354,23 +354,26 @@ html[data-theme="dark"] body[data-sky="partly"] { background: linear-gradient(18
 .hero__sky { flex: none; width: 44px; height: 44px; line-height: 1; font-size: 40px; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 0 1px rgba(16,27,48,.45)); }
 .hero__sky svg { width: 44px; height: 44px; }
 html[data-theme="dark"] .hero__sky { filter: none; }
-.hero__chips { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.hero__chips { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 /* A long pill ("Rain falling now · 86% chance") wraps inside the card: as
    one unbreakable line it widened the page to 431 px on a 411 dp phone,
    which also pushed the centred sheets off the right edge. inline-block,
    not flex: flex split the temperature pill into columns when it wrapped. */
 .hero__chips .vpill { display: inline-block; max-width: 100%; white-space: normal; }
-.hero__chips .vpill .vpill__ic { margin-right: 5px; }
+.hero__chips .vpill .vpill__ic { margin-right: 3px; }
 .hero__sub { font-size: 13.5px; color: var(--ink-soft); margin-top: 6px; font-variant-numeric: tabular-nums; line-height: 1.35; }
 
 /* ---- Badges: round, numeric, words on hover ---- */
 /* Wrapper boxes vanish so verdict pills and badges wrap as one chip flow. */
 .hero__badges, .hero .verdict { display: contents; }
+/* Tags read as secondary info (Martin, 17/11: "the tags are too big"):
+   12 px on a 20 px line, so the temperature leads the hero row. */
 .sure-badge, .station-badge {
-  padding: 4px 10px;
+  padding: 2px 8px;
   border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   cursor: default;
@@ -511,8 +514,8 @@ button.sure-badge { border: 0; font-family: inherit; cursor: pointer; }
 /* Fits beside the title, else drops to its own full-width row. */
 .timeline .seg--inline { flex: 1 1 auto; }
 .card__badge {
-  font-size: 12px; font-weight: 600;
-  padding: 3px 9px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600;
+  padding: 2px 8px; border-radius: 999px;
   background: rgba(15,157,88,.1); color: var(--green-ink);
   white-space: nowrap;
 }
@@ -526,16 +529,16 @@ button.sure-badge { border: 0; font-family: inherit; cursor: pointer; }
 /* ---- Visual verdict: the at-a-glance 24h answer ---- */
 .verdict { display: flex; flex-wrap: wrap; gap: 6px; }
 .vpill {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 13px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; line-height: 16px; font-weight: 600;
   background: var(--mg-night);
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 2px 8px;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.vpill__ic { font-size: 14px; line-height: 1; }
+.vpill__ic { font-size: 12px; line-height: 1; }
 .vpill__sub { font-weight: 500; color: var(--ink-soft); }
 .vpill--ok { background: rgba(15,157,88,.12); color: var(--green-ink); }
 .vpill--rain { background: rgba(59,130,246,.13); color: #1d4ed8; }

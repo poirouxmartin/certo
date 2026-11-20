@@ -23,6 +23,17 @@ public class WeatherIconsTest {
     }
 
     @Test
+    public void nightSlotsNeverShowASun() {
+        assertEquals("🌙", WeatherIcons.condition(0, 0, 0, 5, false).icon);
+        assertEquals("🌙", WeatherIcons.condition(2, 0, 0, 50, false).icon);
+        assertEquals("🌙", WeatherIcons.condition(61, 0.1, 20, 60, false).icon); // drawn cloudy
+        assertEquals("🌧️", WeatherIcons.condition(80, 0.4, 30, 90, false).icon); // sun and rain
+        assertEquals("☁️", WeatherIcons.condition(3, 0, 0, 100, false).icon);
+        assertEquals("☀️", WeatherIcons.condition(0, 0, 0, 5, true).icon);
+        assertEquals(R.string.cond_clear, WeatherIcons.condition(0, 0, 0, 5, false).label);
+    }
+
+    @Test
     public void likelyOrMeasurableRainStaysWet() {
         assertEquals("🌦️", icon(61, 0.1, 70, 90)); // probable: light rain
         assertEquals("🌦️", icon(80, 0.4, 30, 90));

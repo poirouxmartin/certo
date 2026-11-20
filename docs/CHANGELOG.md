@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.7.0 (2026-11-20)
+
+### App
+
+- Night hours never show a sun: a moon when clear, a moon behind a cloud
+  when partly cloudy, in the hourly view, the chart, the next days and the
+  header. Hours past the last day with solar times reuse the nearest
+  sunrise and sunset instead of all reading as night.
+- Widget and lock-screen notification: moon at night too (Open-Meteo
+  is_day, which follows the real sunrise and sunset).
+- Smaller tags in the header (12 px, slimmer padding); the hour of the
+  day's high moved to the tag's tooltip. The "Dry" tag shows a closed
+  umbrella instead of a sun.
+
 ## 1.6.9 (2026-11-20)
 
 ### App

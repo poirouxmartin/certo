@@ -555,8 +555,8 @@ public class WeatherWidget extends AppWidgetProvider {
         HttpURLConnection c = openConn(ctx,
                 "https://api.open-meteo.com/v1/forecast?latitude=" + pl.lat
                 + "&longitude=" + pl.lon
-                + "&current=temperature_2m,weather_code,precipitation,cloud_cover"
-                + "&hourly=temperature_2m,weather_code,precipitation,precipitation_probability,cloud_cover,wind_speed_10m,wind_direction_10m"
+                + "&current=temperature_2m,weather_code,precipitation,cloud_cover,is_day"
+                + "&hourly=temperature_2m,weather_code,precipitation,precipitation_probability,cloud_cover,wind_speed_10m,wind_direction_10m,is_day"
                 + "&minutely_15=precipitation&wind_speed_unit=ms&timezone=auto&forecast_days=2");
         String body;
         try {
@@ -571,7 +571,7 @@ public class WeatherWidget extends AppWidgetProvider {
         // current.precipitation covers the preceding 15 min: x4 for mm/h.
         double curMm = cur.has("precipitation") ? cur.optDouble("precipitation", Double.NaN) * 4.0 : Double.NaN;
         WeatherIcons.Condition cond = WeatherIcons.condition(cur.optInt("weather_code", 3), curMm, Double.NaN,
-                cur.optDouble("cloud_cover", Double.NaN));
+                cur.optDouble("cloud_cover", Double.NaN), cur.optInt("is_day", 1) != 0);
         String minStart = null; // "14:35" of next rain at 15-min precision
         // 15-min rain start (best single-model series available).
         try {
@@ -618,6 +618,7 @@ public class WeatherWidget extends AppWidgetProvider {
             JSONArray clouds = hourly.optJSONArray("cloud_cover");
             JSONArray winds = hourly.optJSONArray("wind_speed_10m");
             JSONArray wdirs = hourly.optJSONArray("wind_direction_10m");
+            JSONArray dayFlags = hourly.optJSONArray("is_day");
             SimpleDateFormat hourFmt = placeFormat("yyyy-MM-dd'T'HH:mm", utcOffsetSec);
             String curTime = cur.optString("time", "");
             String nowPrefix = curTime.substring(0, Math.min(13, curTime.length()));
@@ -649,7 +650,7 @@ public class WeatherWidget extends AppWidgetProvider {
                     try { ho.put("ts", hourFmt.parse(ts.substring(0, 16)).getTime()); } catch (Exception ignored) {}
                     ho.put("t", ctx.getString(R.string.hour_label, ts.substring(11, 13)));
                     ho.put("icon", WeatherIcons.condition(codes != null ? codes.optInt(start + h, 3) : 3,
-                            mm, prob, cloud).icon);
+                            mm, prob, cloud, dayFlags == null || dayFlags.optInt(start + h, 1) != 0).icon);
                     ho.put("temp", String.valueOf(Math.round(temp)) + "°");
                     // Low chances are noise on a glance widget: blank under RAIN_SHOWN_PROB.
                     ho.put("rain", prob >= RAIN_SHOWN_PROB ? "💧" + Math.round(prob) + "%" : "");

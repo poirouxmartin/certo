@@ -67,6 +67,28 @@ final class WeatherIcons {
         return new Condition("🌧️", code >= 80 ? R.string.cond_showers : R.string.cond_rain);
     }
 
+    /** Same, drawn for the time of day: Open-Meteo's is_day flag follows the
+     * real sunrise and sunset of the place. A night slot never shows a sun
+     * (Martin, 17/11): the label is kept, the sun art becomes a moon and
+     * "sun and rain" plain rain. */
+    static Condition condition(int code, double mmPerHour, double prob, double cloud, boolean isDay) {
+        Condition c = condition(code, mmPerHour, prob, cloud);
+        return isDay ? c : atNight(c);
+    }
+
+    static Condition atNight(Condition c) {
+        switch (c.icon) {
+            case "☀️":
+            case "🌤️":
+            case "⛅":
+                return new Condition("🌙", c.label);
+            case "🌦️":
+                return new Condition("🌧️", c.label);
+            default:
+                return c;
+        }
+    }
+
     static Condition cloudy(double cloud) {
         if (Double.isNaN(cloud) || cloud >= 80) return new Condition("☁️", R.string.cond_overcast);
         if (cloud >= 40) return new Condition("⛅", R.string.cond_cloudy);

@@ -357,16 +357,21 @@ let sunData = null;
 function isNight(iso) {
   const t = new Date(iso).getTime();
   const d = sunData?.daily;
-  if (d?.sunrise?.length && d?.sunset?.length) {
-    // Before today's sunrise: night, except when still after YESTERDAY's
-    // sunset window — compare against the previous day's sunset.
-    let prevSs = null;
-    for (let i = 0; i < d.sunrise.length; i++) {
-      const sr = new Date(d.sunrise[i]).getTime();
-      const ss = new Date(d.sunset[i]).getTime();
-      if (t < sr) return prevSs === null ? true : t >= prevSs;
-      if (t < ss) return false;
-      prevSs = ss;
+  const sr = (d?.sunrise || []).map((x) => new Date(x).getTime());
+  const ss = (d?.sunset || []).map((x) => new Date(x).getTime());
+  const n = Math.min(sr.length, ss.length);
+  if (n && sr.slice(0, n).every(Number.isFinite) && ss.slice(0, n).every(Number.isFinite)) {
+    // Outside the covered days (hours past the last sunset, or before the
+    // first sunrise) shift t by whole days into the range: solar times move
+    // by ~2 min a day, so the nearest day's pair is close enough. Before,
+    // every hour past the last day read as night.
+    const DAY = 864e5;
+    let tt = t;
+    if (tt > ss[n - 1]) tt -= Math.ceil((tt - ss[n - 1]) / DAY) * DAY;
+    if (tt < sr[0]) tt += Math.ceil((sr[0] - tt) / DAY) * DAY;
+    for (let i = 0; i < n; i++) {
+      if (tt < sr[i]) return true; // after the previous sunset, before this sunrise
+      if (tt < ss[i]) return false;
     }
     return true;
   }
@@ -408,9 +413,12 @@ function weatherKey(row) {
   const prob = row.precipitation_probability?.value ?? 0;
   if (rain > 5) return { icon: "⛈", sky: "storm" };
   if (prob >= 70 || rain > 0.3) return { sky: "rain" };
-  if (cloud >= 70) return { sky: isNight(row.time) ? "night" : "cloud" };
-  if (cloud >= 30) return { sky: isNight(row.time) ? "night" : "partly" };
-  return { sky: isNight(row.time) ? "night" : "day" };
+  // A night hour never shows a sun (Martin, 17/11): a moon when clear, a
+  // moon behind a cloud when partly cloudy, the plain cloud when overcast.
+  const night = isNight(row.time);
+  if (cloud >= 70) return { sky: "cloud", night };
+  if (cloud >= 30) return { sky: night ? "night_partly" : "partly", night };
+  return { sky: night ? "night" : "day", night };
 }
 
 
@@ -423,6 +431,8 @@ const WEATHER_ART = {
      + '<line x1="10" y1="38" x2="14.5" y2="33.5"/><line x1="33.5" y1="14.5" x2="38" y2="10"/></g>'
      + '<circle cx="24" cy="24" r="9" fill="#f0b429"/>',
   night: '<path d="M31 6 a17 17 0 1 0 11 29 a14 14 0 0 1 -11 -29 z" fill="#7d92b8"/>',
+  night_partly: '<path d="M21 3 a12 12 0 1 0 9 21 a10 10 0 0 1 -9 -21 z" fill="#7d92b8"/>'
+        + '<path d="M18 40 a8 8 0 0 1 -.6 -16 a10 10 0 0 1 19.4 -1.4 a7.5 7.5 0 0 1 1.2 14.9 z" fill="#d5deea"/>',
   cloud: '<path d="M15 36 a8 8 0 0 1 -.6 -16 a10 10 0 0 1 19.4 -1.4 a7.5 7.5 0 0 1 1.2 14.9 z" fill="#c2cfdd"/>',
   partly: '<circle cx="17" cy="16" r="7" fill="#f0b429"/>'
         + '<g stroke="#f0b429" stroke-width="2.4" stroke-linecap="round">'
@@ -910,7 +920,7 @@ let backendDown = forceLocal;
    Releases up to v1.6.1 also carried a sure-weather-vX.Y.Z.apk copy for v1.5.2 and older (they look for that name); later releases ship certo-vX.Y.Z.apk only.
    Checked against a raw VERSION file (no rate-limit, CORS-open) — the
    api.github.com endpoint is unusable (60 req/h/IP, shared mobile NATs). */
-const APP_VERSION = "1.6.9";
+const APP_VERSION = "1.7.0";
 const APP_REPO = "poirouxmartin/certo";
 // Native-only bridge to AppUpdaterPlugin.java (registered in MainActivity).
 // Undefined in the browser/PWA, where the banner is a plain link to the APK.
@@ -1428,7 +1438,8 @@ function render(data, hours = state.hours) {
   const nowRow = byTime[times[0]] || {};
   const wk = weatherKey({ ...nowRow, time: times[0] });
   el("sky-icon").innerHTML = weatherSvg(wk.sky, 56);
-  document.body.dataset.sky = wk.sky;
+  // Page tint: a dry night hour gets the night sky, even when cloudy.
+  document.body.dataset.sky = wk.night && wk.sky !== "rain" && wk.sky !== "storm" ? "night" : wk.sky;
   const t = nowRow.temperature_2m;
   el("now-temp").textContent = t ? `${round(t.value)}°` : "—";
   // Icon tiles instead of a dotted sentence: the label moves to the tooltip
@@ -1501,9 +1512,15 @@ function summarizeDays(forecast) {
     const prob = probs.length ? Math.max(...probs) : null;
     // Same thresholds as weatherKey(), lifted to a day: storm on a 5 mm/h
     // hour, rain on a likely-wet day, otherwise the daytime mean cloud cover.
-    const sky = maxRate > 5 ? "storm"
+    let sky = maxRate > 5 ? "storm"
       : (prob ?? 0) >= 60 || rain >= 1 ? "rain"
       : cloud >= 70 ? "cloud" : cloud >= 30 ? "partly" : "day";
+    // Late evening: only night hours are left today, so the row must not
+    // show a sun (Martin, 17/11).
+    if (!daylight.length && d.hours.every((h) => isNight(h.time))) {
+      if (sky === "day") sky = "night";
+      else if (sky === "partly") sky = "night_partly";
+    }
     return {
       ...d, sky, prob, rain,
       lo: temps.length ? Math.min(...temps) : null,
@@ -1720,7 +1737,7 @@ function renderVerdict(times, byTime) {
     }
   } catch { /* bonus timing */ }
   if (!rainHours.length && !precise) {
-    pills.push(`<span class="vpill vpill--ok"><span class="vpill__ic" aria-hidden="true">☀️</span>${tr("v_dry")}</span>`);
+    pills.push(`<span class="vpill vpill--ok"><span class="vpill__ic" aria-hidden="true">🌂</span>${tr("v_dry")}</span>`);
   } else {
     // One rain pill: the precise 15-min timing when known, else the hourly
     // start (two pills "rain from 00:00" + "rain at 00:15" said it twice).
@@ -1738,7 +1755,8 @@ function renderVerdict(times, byTime) {
     const minT = Math.min(...temps);
     const at = rows.find((h) => h.row.temperature_2m?.value === maxT)?.t;
     pills.push(
-      `<span class="vpill"><span class="vpill__ic" aria-hidden="true">🌡️</span><b style="color:${tempColor(maxT)}">${round(maxT)}°</b> / ${round(minT)}°${at ? ` <span class="vpill__sub">${tr("v_at", { h: fmtTime(at) })}</span>` : ""}</span>`
+      // Hour of the max in the tooltip: it made this the widest tag.
+      `<span class="vpill"${at ? ` title="${escHtml(tr("v_at", { h: fmtTime(at) }))}"` : ""}><span class="vpill__ic" aria-hidden="true">🌡️</span><b style="color:${tempColor(maxT)}">${round(maxT)}°</b> / ${round(minT)}°</span>`
     );
   }
   // Wind alert when gusts become unpleasant.
